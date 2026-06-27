@@ -9,44 +9,75 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{
-    background:radial-gradient(circle at 50% 42%, #101010 0%, #000 60%);
-    color:#fff;
+    background:radial-gradient(circle at 50% 42%, #0a0a0a 0%, #000 58%);
+    color:#e8e8e8;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
     min-height:100vh;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;padding:40px;
+    align-items:center;justify-content:center;padding:40px;overflow:hidden;
   }
-  .lockup{display:flex;flex-direction:column;align-items:center;animation:rise .7s ease both}
+
+  /* atmosphere */
+  .grain,.vig,.flicker{position:fixed;inset:0;pointer-events:none}
+  .grain{
+    z-index:60;opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation:drift 1.3s steps(4) infinite;
+  }
+  .vig{z-index:55;background:radial-gradient(ellipse at center, transparent 26%, rgba(0,0,0,.94) 100%);animation:dread 8s ease-in-out infinite}
+  .flicker{z-index:65;background:#000;opacity:0;animation:flick 13s linear infinite}
+  @keyframes drift{0%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,3%)}100%{transform:translate(0,0)}}
+  @keyframes dread{0%,100%{opacity:.86}50%{opacity:1}}
+  @keyframes flick{
+    0%,70%,100%{opacity:0}
+    71%{opacity:.7}71.3%{opacity:0}71.8%{opacity:.95}72.1%{opacity:.2}72.5%{opacity:.85}73%{opacity:0}
+    88%{opacity:0}88.2%{opacity:.6}88.5%{opacity:0}
+  }
+
+  /* content */
+  .lockup{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;animation:rise 1.4s ease both}
+  .portrait{
+    width:min(232px,54vw);height:min(232px,54vw);border-radius:50%;overflow:hidden;
+    filter:grayscale(.5) contrast(1.14) brightness(.78);
+    animation:breathe 7s ease-in-out infinite;
+  }
   .avatar{
-    width:min(220px,52vw);height:min(220px,52vw);border-radius:50%;
-    object-fit:cover;object-position:50% 20%;
-    border:1px solid #1c1c1c;box-shadow:0 0 60px rgba(0,0,0,.8);
+    width:110%;height:110%;margin:-5%;object-fit:cover;object-position:50% 20%;display:block;
+    animation:twitch 8.5s ease-in-out infinite;
   }
-  .word{width:min(480px,84vw);height:auto;margin-top:26px}
+  .word{width:min(480px,84vw);height:auto;margin-top:28px;opacity:.92;animation:signfail 9s steps(1) infinite}
 
-  .btns{display:flex;flex-direction:column;gap:13px;width:min(320px,84vw);margin-top:56px;animation:rise .7s ease .12s both}
-  .btn{
-    display:block;text-align:center;text-decoration:none;
-    padding:16px;border-radius:3px;
-    font-size:13px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;
-    transition:all .18s ease;
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+  @keyframes twitch{
+    0%,42%,46%,100%{transform:translate(0,0) rotate(0);filter:brightness(1)}
+    43%{transform:translate(4px,-3px) rotate(.6deg);filter:brightness(1.35)}
+    43.6%{transform:translate(-3px,2px) rotate(-.4deg);filter:brightness(.9)}
+    44.4%{transform:translate(2px,0) rotate(.2deg);filter:brightness(1.1)}
   }
-  .btn--primary{background:#fff;color:#000;border:1px solid #fff}
-  .btn--primary:hover{background:#d6d6d6;border-color:#d6d6d6}
-  .btn--ghost{background:transparent;color:#fff;border:1px solid #333}
-  .btn--ghost:hover{border-color:#fff;background:rgba(255,255,255,.04)}
+  @keyframes signfail{0%,84%,100%{opacity:.92}85%{opacity:.3}86%{opacity:.92}96%{opacity:.55}96.6%{opacity:.92}}
 
-  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-  @media (prefers-reduced-motion:reduce){.lockup,.btns{animation:none}}
+  .btns{position:relative;z-index:1;display:flex;flex-direction:column;gap:13px;width:min(320px,84vw);margin-top:58px;animation:rise 1.4s ease .2s both}
+  .btn{display:block;text-align:center;text-decoration:none;padding:16px;border-radius:3px;font-size:13px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;transition:all .2s ease}
+  .btn--primary{background:#e6e6e6;color:#000;border:1px solid #e6e6e6}
+  .btn--primary:hover{background:#000;color:#fff;border-color:#fff}
+  .btn--ghost{background:transparent;color:#cfcfcf;border:1px solid #2e2e2e}
+  .btn--ghost:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.04)}
+
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.grain,.vig,.flicker,.portrait,.avatar,.word,.lockup,.btns{animation:none}}
 </style>
 </head>
 <body>
+  <div class="vig"></div>
+  <div class="grain"></div>
+  <div class="flicker"></div>
+
   <div class="lockup">
-    <img class="avatar" src="/Zombie.png" alt="Zombie" />
+    <div class="portrait"><img class="avatar" src="/Zombie.png" alt="Zombie" /></div>
     <img class="word" src="/ZombieBanner.png" alt="ZOMBIE" />
   </div>
   <div class="btns">
     <a class="btn btn--primary" href="/submit">Submit Story</a>
-    <a class="btn btn--ghost" href="https://www.youtube.com/@%CE%96%CE%9F%CE%9C%CE%92%CE%99%CE%95" target="_blank" rel="noopener">Subscribe</a>
+    <a class="btn btn--ghost" href="https://www.youtube.com/@%CE%96%CE%9F%CE%9C%CE%92%CE%99%CE%95?sub_confirmation=1" target="_blank" rel="noopener">Subscribe</a>
   </div>
 </body>
 </html>
