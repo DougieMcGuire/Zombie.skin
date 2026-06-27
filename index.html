@@ -8,114 +8,25 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{background:#000;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;overflow:hidden}
-  .blood{position:fixed;top:0;left:0;width:100%;height:150px;pointer-events:none;z-index:30}
-  .blood svg{width:100%;height:100%;display:block}
-  .avatar{width:min(210px,52vw);height:min(210px,52vw);border-radius:50%;object-fit:cover;object-position:50% 20%}
-  .word{width:min(460px,84vw);height:auto;margin-top:24px}
-  .btns{display:flex;flex-direction:column;gap:13px;width:min(320px,84vw);margin-top:54px}
-  .btn{display:block;text-align:center;text-decoration:none;padding:16px;border-radius:3px;font-size:13px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:all .18s ease}
-  .btn--primary{background:#e6e6e6;color:#000;border:1px solid #e6e6e6}
-  .btn--primary:hover{background:#fff;border-color:#fff}
-  .btn--ghost{background:transparent;color:#ccc;border:1px solid #333}
-  .btn--ghost:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.04)}
-  .scare-overlay{position:fixed;inset:0;z-index:9999;background:#000 center/cover no-repeat;animation:scarein .06s steps(1)}
-  @keyframes scarein{from{opacity:.15}to{opacity:1}}
-  .scare-shake{animation:shake .06s linear infinite}
-  @keyframes shake{0%{transform:translate(0,0)}25%{transform:translate(-9px,7px)}50%{transform:translate(8px,-8px)}75%{transform:translate(-7px,-6px)}100%{transform:translate(7px,8px)}}
+  body{
+    background:#000;color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:40px;
+  }
+  .avatar{width:min(200px,50vw);height:min(200px,50vw);border-radius:50%;object-fit:cover;object-position:50% 20%}
+  .word{width:min(440px,82vw);height:auto;margin-top:22px}
+  .btns{display:flex;flex-direction:column;gap:12px;width:min(300px,82vw);margin-top:50px}
+  .btn{display:block;text-align:center;text-decoration:none;padding:15px;border:1px solid #333;border-radius:3px;color:#fff;font-size:13px;letter-spacing:2px;text-transform:uppercase;transition:all .18s ease}
+  .btn:hover{background:#fff;border-color:#fff;color:#000}
 </style>
 </head>
 <body>
-  <div class="blood" aria-hidden="true">
-    <svg viewBox="0 0 1200 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b0007"/><stop offset="1" stop-color="#360003"/></linearGradient></defs>
-      <path fill="url(#b)" d="M0,0 H1200 V30
-        C1180,46 1165,34 1150,40 C1120,52 1112,30 1090,33 C1064,36 1058,86 1040,86
-        C1022,86 1018,40 996,37 C970,33 962,58 940,58 C922,58 916,32 892,34
-        C864,36 858,120 836,120 C818,120 814,42 792,40 C766,37 760,66 736,66
-        C716,66 710,34 686,35 C660,36 652,150 630,150 C612,150 610,46 588,42
-        C562,37 556,70 532,70 C512,70 506,33 482,34 C456,35 450,104 428,104
-        C410,104 406,40 384,38 C358,35 352,60 328,60 C308,60 302,33 278,35
-        C252,37 246,132 224,132 C206,132 202,42 180,40 C156,37 150,58 126,56
-        C104,54 96,32 72,35 C44,38 30,30 0,40 Z"/>
-      <g fill="#4a0005">
-        <rect x="630" y="140" width="4" height="9"/><circle cx="632" cy="149" r="4"/>
-        <rect x="224" y="124" width="4" height="14"/><circle cx="226" cy="138" r="4"/>
-      </g>
-      <path d="M0,4 H1200" stroke="#9a0d14" stroke-width="3" opacity=".5"/>
-    </svg>
-  </div>
-
   <img class="avatar" src="Zombie.png" alt="Zombie" />
   <img class="word" src="ZombieBanner.png" alt="ZOMBIE" />
   <div class="btns">
-    <a class="btn btn--primary" data-scare href="submit.html">Submit Story</a>
-    <a class="btn btn--ghost" data-scare href="https://www.youtube.com/@%CE%96%CE%9F%CE%9C%CE%92%CE%99%CE%95?sub_confirmation=1">Subscribe</a>
+    <a class="btn" href="submit.html">Submit Story</a>
+    <a class="btn" href="https://www.youtube.com/@%CE%96%CE%9F%CE%9C%CE%92%CE%99%CE%95?sub_confirmation=1">Subscribe</a>
   </div>
-
-  <script>
-  (function(){
-    const SCARES=["scares/scare1.jpg","scares/scare2.jpg","scares/scare3.jpg","scares/scare4.jpg","scares/scare5.jpg","scares/scare6.jpg"];
-    SCARES.forEach(s=>{const i=new Image();i.src=s;});
-
-    // scream pulled from Wikimedia (CC0). Swap this URL for any scream you like.
-    const SCREAM_URL="https://commons.wikimedia.org/wiki/Special:FilePath/UncleSigmund_-_ahhh_%28cc0%29_%28freesound%29.mp3";
-    const POOL=Array.from({length:3},()=>{const a=new Audio(SCREAM_URL);a.preload="auto";a.volume=1;return a;});
-    let pi=0;
-
-    // synth fallback if the remote file can't play
-    let actx=null;
-    function synth(){
-      try{
-        if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
-        if(actx.state==="suspended") actx.resume();
-        const t=actx.currentTime;
-        const buf=actx.createBuffer(1,Math.floor(actx.sampleRate*0.5),actx.sampleRate);
-        const d=buf.getChannelData(0);
-        for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.4);
-        const n=actx.createBufferSource(); n.buffer=buf;
-        const ng=actx.createGain(); ng.gain.setValueAtTime(0.5,t); ng.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-        n.connect(ng).connect(actx.destination); n.start(t);
-        const o=actx.createOscillator(); o.type="sawtooth";
-        o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(1800,t+0.16); o.frequency.exponentialRampToValueAtTime(90,t+0.5);
-        const og=actx.createGain(); og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.45,t+0.02); og.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-        o.connect(og).connect(actx.destination); o.start(t); o.stop(t+0.5);
-      }catch(e){}
-    }
-    function scream(){
-      try{
-        const a=POOL[pi=(pi+1)%POOL.length]; a.currentTime=0;
-        const p=a.play();
-        if(p&&p.catch) p.catch(()=>synth());
-      }catch(e){ synth(); }
-    }
-    // unlock / buffer on first gesture
-    function prime(){ POOL.forEach(a=>{ a.play().then(()=>{a.pause();a.currentTime=0;}).catch(()=>{}); }); if(actx&&actx.state==="suspended")actx.resume(); }
-    ["pointerdown","keydown","touchstart"].forEach(ev=>window.addEventListener(ev,prime,{once:true}));
-
-    let busy=false;
-    function jumpscare(done){
-      if(busy){ if(done) done(); return; }
-      busy=true;
-      const img=SCARES[Math.floor(Math.random()*SCARES.length)];
-      const o=document.createElement("div");
-      o.className="scare-overlay";
-      o.style.backgroundImage='url("'+img+'")';
-      document.body.appendChild(o);
-      document.documentElement.classList.add("scare-shake");
-      scream();
-      setTimeout(function(){ o.remove(); document.documentElement.classList.remove("scare-shake"); busy=false; if(done) done(); },650);
-    }
-    window.jumpscare=jumpscare;
-
-    window.addEventListener("load",function(){ jumpscare(); });
-    document.addEventListener("click",function(e){
-      const t=e.target.closest("[data-scare]"); if(!t) return;
-      e.preventDefault();
-      const href=t.getAttribute("href");
-      jumpscare(function(){ if(href) window.location.href=href; });
-    });
-  })();
-  </script>
 </body>
 </html>
