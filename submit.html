@@ -7,52 +7,29 @@
 <link rel="icon" href="Zombie.png" />
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#000;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;min-height:100vh;padding:44px 20px 80px;overflow-x:hidden}
-  .blood{position:fixed;top:0;left:0;width:100%;height:130px;pointer-events:none;z-index:30}
-  .blood svg{width:100%;height:100%;display:block}
-  .wrap{position:relative;z-index:1;max-width:500px;margin:0 auto;padding-top:60px}
-  .back{color:#999;text-decoration:none;font-size:13px;letter-spacing:1px;cursor:pointer}
+  body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;min-height:100vh;padding:44px 20px 80px}
+  .wrap{max-width:500px;margin:0 auto}
+  .back{color:#888;text-decoration:none;font-size:13px;letter-spacing:1px}
   .back:hover{color:#fff}
-  h1{font-size:30px;font-weight:600;letter-spacing:.5px;margin:24px 0 6px}
-  .sub{color:#888;font-size:14px;margin-bottom:30px}
-  label{display:block;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#999;margin:20px 0 8px}
-  label .opt{text-transform:none;letter-spacing:0;color:#5f5f5f}
-  input,textarea{width:100%;background:#0b0b0b;border:1px solid #242424;border-radius:3px;color:#fff;font:inherit;font-size:15px;padding:13px 14px;transition:border-color .15s}
+  h1{font-size:28px;font-weight:600;letter-spacing:.5px;margin:24px 0 6px}
+  .sub{color:#888;font-size:14px;margin-bottom:28px}
+  label{display:block;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#aaa;margin:18px 0 7px}
+  label .opt{text-transform:none;letter-spacing:0;color:#666}
+  input,textarea{width:100%;background:#0d0d0d;border:1px solid #333;color:#fff;font:inherit;font-size:15px;padding:12px 13px;border-radius:3px;transition:border-color .15s}
   input:focus,textarea:focus{outline:none;border-color:#888}
-  textarea{min-height:160px;resize:vertical;line-height:1.6}
-  .row{display:flex;gap:10px;align-items:center;margin-top:20px;font-size:14px;color:#999}
-  .row input{width:auto;accent-color:#bbb}
-  button{margin-top:26px;width:100%;padding:16px;background:#e6e6e6;color:#000;border:1px solid #e6e6e6;border-radius:3px;font:inherit;font-size:13px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;transition:all .18s}
-  button:hover{background:#fff}
-  .hint{color:#ccc;font-size:13px;margin-top:12px;min-height:1em}
-  .ok{display:none;text-align:center;padding:40px 0;font-size:15px;color:#bbb;line-height:1.8}
+  textarea{min-height:150px;resize:vertical;line-height:1.6}
+  .row{display:flex;gap:10px;align-items:center;margin-top:18px;font-size:14px;color:#aaa}
+  .row input{width:auto}
+  button{margin-top:22px;width:100%;padding:14px;background:#fff;color:#000;border:none;border-radius:3px;font:inherit;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;cursor:pointer}
+  button:hover{background:#ddd}
+  .hint{color:#aaa;font-size:13px;margin-top:10px;min-height:1em}
+  .ok{display:none;text-align:center;padding:36px 0;font-size:15px;color:#bbb;line-height:1.7}
   .ok a{color:#fff}
-  .scare-overlay{position:fixed;inset:0;z-index:9999;background:#000 center/cover no-repeat;animation:scarein .06s steps(1)}
-  @keyframes scarein{from{opacity:.15}to{opacity:1}}
-  .scare-shake{animation:shake .06s linear infinite}
-  @keyframes shake{0%{transform:translate(0,0)}25%{transform:translate(-9px,7px)}50%{transform:translate(8px,-8px)}75%{transform:translate(-7px,-6px)}100%{transform:translate(7px,8px)}}
 </style>
 </head>
 <body>
-  <div class="blood" aria-hidden="true">
-    <svg viewBox="0 0 1200 130" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b0007"/><stop offset="1" stop-color="#360003"/></linearGradient></defs>
-      <path fill="url(#b)" d="M0,0 H1200 V28
-        C1180,42 1165,30 1150,36 C1120,48 1112,28 1090,31 C1064,34 1058,78 1040,78
-        C1022,78 1018,36 996,33 C970,30 962,52 940,52 C922,52 916,30 892,32
-        C864,34 858,108 836,108 C818,108 814,38 792,36 C766,33 760,60 736,60
-        C716,60 710,31 686,32 C660,33 652,130 630,130 C612,130 610,42 588,38
-        C562,33 556,62 532,62 C512,62 506,30 482,31 C456,32 450,94 428,94
-        C410,94 406,36 384,34 C358,31 352,54 328,54 C308,54 302,30 278,32
-        C252,34 246,118 224,118 C206,118 202,38 180,36 C156,33 150,52 126,50
-        C104,48 96,29 72,32 C44,35 30,27 0,36 Z"/>
-      <g fill="#4a0005"><rect x="630" y="122" width="4" height="8"/><circle cx="632" cy="130" r="4"/></g>
-      <path d="M0,3 H1200" stroke="#9a0d14" stroke-width="3" opacity=".5"/>
-    </svg>
-  </div>
-
   <div class="wrap">
-    <a class="back" data-scare href="index.html">← back</a>
+    <a class="back" href="index.html">← back</a>
     <h1>Submit your story</h1>
     <p class="sub">The best ones get narrated on the channel.</p>
 
@@ -70,72 +47,24 @@
       <p class="hint" id="hint"></p>
     </form>
 
-    <p class="ok" id="ok">Received.<br />If it makes the cut, you'll hear it on the channel.<br /><br /><a data-scare href="index.html">← home</a></p>
+    <p class="ok" id="ok">Received. If it makes the cut, you'll hear it on the channel. <a class="back" href="index.html">← home</a></p>
   </div>
 
   <script>
-  (function(){
-    const SCARES=["scares/scare1.jpg","scares/scare2.jpg","scares/scare3.jpg","scares/scare4.jpg","scares/scare5.jpg","scares/scare6.jpg"];
-    SCARES.forEach(s=>{const i=new Image();i.src=s;});
-    const SCREAM_URL="https://commons.wikimedia.org/wiki/Special:FilePath/UncleSigmund_-_ahhh_%28cc0%29_%28freesound%29.mp3";
-    const POOL=Array.from({length:3},()=>{const a=new Audio(SCREAM_URL);a.preload="auto";a.volume=1;return a;});
-    let pi=0,actx=null;
-    function synth(){
-      try{
-        if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
-        if(actx.state==="suspended") actx.resume();
-        const t=actx.currentTime;
-        const buf=actx.createBuffer(1,Math.floor(actx.sampleRate*0.5),actx.sampleRate);
-        const d=buf.getChannelData(0);
-        for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.4);
-        const n=actx.createBufferSource(); n.buffer=buf;
-        const ng=actx.createGain(); ng.gain.setValueAtTime(0.5,t); ng.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-        n.connect(ng).connect(actx.destination); n.start(t);
-        const o=actx.createOscillator(); o.type="sawtooth";
-        o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(1800,t+0.16); o.frequency.exponentialRampToValueAtTime(90,t+0.5);
-        const og=actx.createGain(); og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.45,t+0.02); og.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-        o.connect(og).connect(actx.destination); o.start(t); o.stop(t+0.5);
-      }catch(e){}
-    }
-    function scream(){
-      try{ const a=POOL[pi=(pi+1)%POOL.length]; a.currentTime=0; const p=a.play(); if(p&&p.catch) p.catch(()=>synth()); }catch(e){ synth(); }
-    }
-    function prime(){ POOL.forEach(a=>{ a.play().then(()=>{a.pause();a.currentTime=0;}).catch(()=>{}); }); if(actx&&actx.state==="suspended")actx.resume(); }
-    ["pointerdown","keydown","touchstart"].forEach(ev=>window.addEventListener(ev,prime,{once:true}));
-
-    let busy=false;
-    function jumpscare(done){
-      if(busy){ if(done) done(); return; }
-      busy=true;
-      const img=SCARES[Math.floor(Math.random()*SCARES.length)];
-      const o=document.createElement("div"); o.className="scare-overlay"; o.style.backgroundImage='url("'+img+'")';
-      document.body.appendChild(o);
-      document.documentElement.classList.add("scare-shake");
-      scream();
-      setTimeout(function(){ o.remove(); document.documentElement.classList.remove("scare-shake"); busy=false; if(done) done(); },650);
-    }
-    window.jumpscare=jumpscare;
-    window.addEventListener("load",function(){ jumpscare(); });
-    document.addEventListener("click",function(e){
-      const t=e.target.closest("[data-scare]"); if(!t) return;
-      e.preventDefault(); const href=t.getAttribute("href");
-      jumpscare(function(){ if(href) window.location.href=href; });
+    const f=document.getElementById('f');
+    f.addEventListener('submit',function(e){
+      e.preventDefault();
+      const hint=document.getElementById('hint');
+      const title=document.getElementById('title').value.trim();
+      const story=document.getElementById('story').value.trim();
+      if(!title||!story){hint.textContent='Add a title and your story first.';return;}
+      if(!document.getElementById('consent').checked){hint.textContent='Tick the box so we can read it.';return;}
+      const payload={title,story,alias:document.getElementById('alias').value.trim(),email:document.getElementById('email').value.trim()};
+      // WIRE BACKEND HERE (Firebase / Formspree). For now logs only:
+      console.log('submission',payload);
+      f.style.display='none';
+      document.getElementById('ok').style.display='block';
     });
-  })();
-
-  const f=document.getElementById('f');
-  f.addEventListener('submit',function(e){
-    e.preventDefault();
-    const hint=document.getElementById('hint');
-    const title=document.getElementById('title').value.trim();
-    const story=document.getElementById('story').value.trim();
-    if(!title||!story){hint.textContent='Add a title and your story first.';return;}
-    if(!document.getElementById('consent').checked){hint.textContent='Tick the box so we can read it.';return;}
-    const payload={title,story,alias:document.getElementById('alias').value.trim(),email:document.getElementById('email').value.trim()};
-    // WIRE BACKEND HERE (Firebase / Formspree). For now logs only:
-    console.log('submission',payload);
-    window.jumpscare(function(){ f.style.display='none'; document.getElementById('ok').style.display='block'; });
-  });
   </script>
 </body>
 </html>
