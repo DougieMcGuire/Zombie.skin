@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v15 \u00b7 pdb-live";
+const BUILD = "v16 \u00b7 history+cape";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -427,15 +427,14 @@ const API = {
     return null;
   },
   async lookup(ident){
-    const [pdb, vrc] = await Promise.all([ this._playerdb(ident), this._vrc(ident) ]);
+    const [pdb, vrc, crafty] = await Promise.all([ this._playerdb(ident), this._vrc(ident), this._crafty(ident) ]);
     if(pdb && pdb.rate && !vrc) throw new Error("Rate limited \u2014 try again in a moment");
-    // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history.
+    const skinHist = (crafty && crafty.skins && crafty.skins.length) ? crafty.skins : null;
+    // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history + crafty skins.
     if(pdb && pdb.id){
       const uname = pdb.name;
       return {
         id: pdb.id, name: uname,
-        // render the CURRENT skin from its live Mojang texture id (CORS-clean via mc-heads),
-        // with by-UUID renders as fallback. skin URL is just a stable key here.
         skin: pdb.skinId ? mojangTex(pdb.skinId) : `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`,
         skinId: pdb.skinId,
         cape: pdb.capeId ? mojangTex(pdb.capeId) : (vrc && vrc.hasCape ? `${VRC}/cape?username=${encodeURIComponent(uname)}` : null),
@@ -443,6 +442,7 @@ const API = {
         slim: pdb.slim,
         head: `https://mc-heads.net/head/${pdb.id}/128`,
         history: (vrc && vrc.history) || null,
+        skinHistory: skinHist,
         legacy:false, raw:pdb, src:"playerdb"
       };
     }
@@ -456,9 +456,29 @@ const API = {
         slim: vrc.slim,
         head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
         history: vrc.history || null,
+        skinHistory: skinHist,
         legacy:false, raw:vrc, src:"vrc"
       };
     }
+    return null;
+  },
+  async _crafty(ident){
+    // crafty.gg tracks skin history; not Mojang infra, so the worker can reach it.
+    try{
+      const r = await fetch(px(`https://api.crafty.gg/api/v2/players/${encodeURIComponent(ident)}`));
+      if(!r.ok) return null;
+      const j = await r.json().catch(()=>null);
+      const d = j && (j.data || j);
+      if(!d) return null;
+      const skins = Array.isArray(d.skins) ? d.skins : [];
+      // each skin: {hash, url?, id?, createdAt?/created_at?}
+      const hist = skins.map(s=>({
+        hash: s.hash || texHash(s.url||"") || null,
+        url: s.url || (s.hash ? `https://textures.minecraft.net/texture/${s.hash}` : null),
+        at: s.createdAt || s.created_at || s.firstSeen || null
+      })).filter(x=>x.hash || x.url);
+      return { skins: hist };
+    }catch{}
     return null;
   },
   async optifineCape(name){
@@ -615,6 +635,24 @@ function renderProfile(prof, history_in, ofCape){
   const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
   const skins = [];
   if(prof.skin) skins.push({url:prof.skin, slim:prof.slim, cap:"current", cur:true});
+  // historical skins from crafty.gg (deduped against current)
+  if(Array.isArray(prof.skinHistory)){
+    const seen = new Set([prof.skinId].filter(Boolean));
+    prof.skinHistory.forEach(h=>{
+      const hash = h.hash || texHash(h.url||"");
+      if(!hash || seen.has(hash)) return;
+      seen.add(hash);
+      const key = `hist:${hash}`;
+      // register CORS-clean sources for this historical texture id
+      TEX_SOURCES[key] = [
+        `https://mc-heads.net/skin/${hash}`,
+        `https://crafty.gg/api/v2/skins/${hash}/skin`,
+        h.url ? px(h.url) : null,
+        `https://textures.minecraft.net/texture/${hash}`,
+      ].filter(Boolean);
+      skins.push({url:key, slim:prof.slim, cap: h.at?fmtDate(h.at):"past", cur:false});
+    });
+  }
   const capes = [];
   if(prof.cape) capes.push({url:prof.cape, cap:"active", cur:true});
   if(ofCape) capes.push({url:ofCape, cap:"OptiFine", of:true});
@@ -896,10 +934,15 @@ function drawCapeFront(cv,img){
   const ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=false;
   ctx.clearRect(0,0,cv.width,cv.height);
   try{
-    const ratio=img.width/img.height;
-    const b=Math.abs(ratio-2)<0.05?64:46;              // vanilla 64x32 grid vs OptiFine-style
-    const s=img.width/b;
-    ctx.drawImage(img, 1*s,1*s,10*s,16*s, 12,0,40,64); // front face of the cape
+    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    // Cape sheets are 2:1 (e.g. 64x32); scale is width/64. Front panel = (1,1) 10x16.
+    const s = W/64;
+    const sx=1*s, sy=1*s, sw=10*s, sh=16*s;
+    // fit the 10x16 panel into the square tile, preserving aspect, centered
+    const scale = Math.min(cv.width/sw, cv.height/sh);
+    const dw = sw*scale, dh = sh*scale;
+    const dx = (cv.width-dw)/2, dy = (cv.height-dh)/2;
+    ctx.drawImage(img, sx,sy,sw,sh, dx,dy,dw,dh);
   }catch{ ctx.drawImage(img,0,0,cv.width,cv.height); }
 }
 function paintGalleryTiles(){
