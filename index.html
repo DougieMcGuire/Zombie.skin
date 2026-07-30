@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v13 \u00b7 mcheads-texid";
+const BUILD = "v14 \u00b7 vrc";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -385,35 +385,63 @@ const Store = {
 
 /* -------------------- API layer (JSON + canvas loads go via Worker) --------------------
    NOTE: Mojang's own API (api.mojang.com / sessionserver) 403-blocks requests coming
-   from Cloudflare Workers' shared IPs, so profile data comes from PlayerDB instead —
-   same textures payload, accepts a username OR a UUID in one call. */
+   Primary source: vrc.lol — a NameMC-style API with UUID, name history, and its own
+   CORS-enabled skin/cape image proxy (no worker needed for images). PlayerDB is the
+   fallback for the UUID + raw Mojang textures payload. */
+const VRC = "https://vrc.lol";
 const API = {
   async lookup(ident){
-    const r = await fetch(px(`https://playerdb.co/api/player/minecraft/${encodeURIComponent(ident)}`));
-    if(r.status===429) throw new Error("Rate limited \u2014 try again in a moment");
-    let j=null; try{ j=await r.json(); }catch{}
-    if(j && j.success && j.data?.player){
-      const p=j.data.player;
-      let skin=null, cape=null, slim=false;
-      const prop=(p.properties||[]).find(x=>x.name==="textures");
-      if(prop){ try{
-        const tex=b64json(prop.value);
-        skin = tex.textures?.SKIN?.url || null;
-        cape = tex.textures?.CAPE?.url || null;
-        slim = tex.textures?.SKIN?.metadata?.model === "slim";
-      }catch{} }
-      if(!skin && p.skin_texture) skin=p.skin_texture;
-      return { id:(p.raw_id||trimUuid(p.id||"")), name:p.username, skin, cape, slim, legacy:false, raw:p };
-    }
-    if(r.status===400 || r.status===404 || (j && j.success===false)) return null;
-    throw new Error("Lookup failed (HTTP "+r.status+")");
-  },
-  async laby(uuid){
+    // Try vrc.lol first (gives name history + working image proxy).
     try{
-      const r = await fetch(px(`https://laby.net/api/v2/user/${dashUuid(uuid)}/get-profile`));
-      if(!r.ok) return null;
-      return r.json();
-    }catch{ return null; }
+      const r = await fetch(`${VRC}/api?username=${encodeURIComponent(ident)}`);
+      if(r.status!==429){
+        const j = await r.json().catch(()=>null);
+        if(j && j.success && j.java && j.java.uuid){
+          const jv = j.java;
+          return {
+            id: trimUuid(jv.uuid),
+            name: jv.username || ident,
+            skin: `${VRC}/skin?username=${encodeURIComponent(jv.username||ident)}&type=java`,
+            cape: jv.cape_url ? (jv.cape_url.startsWith("http")?jv.cape_url:VRC+jv.cape_url) : `${VRC}/cape?username=${encodeURIComponent(jv.username||ident)}`,
+            head: `${VRC}/head?username=${encodeURIComponent(jv.username||ident)}&size=128`,
+            slim: !!jv.slim,
+            history: Array.isArray(jv.name_history) ? jv.name_history : null,
+            legacy: false, raw: jv, src: "vrc"
+          };
+        }
+        if(r.status===404 || (j && j.success===false && (j.code==="NOT_FOUND"))) {
+          // fall through to PlayerDB in case vrc simply hasn't cached it
+        }
+      }
+    }catch{}
+    // Fallback: PlayerDB (UUID + textures payload)
+    try{
+      const r = await fetch(px(`https://playerdb.co/api/player/minecraft/${encodeURIComponent(ident)}`));
+      if(r.status===429) throw new Error("Rate limited \u2014 try again in a moment");
+      const j = await r.json().catch(()=>null);
+      if(j && j.success && j.data?.player){
+        const p=j.data.player;
+        let skin=null, cape=null, slim=false;
+        const prop=(p.properties||[]).find(x=>x.name==="textures");
+        if(prop){ try{
+          const tex=b64json(prop.value);
+          skin = tex.textures?.SKIN?.url || null;
+          cape = tex.textures?.CAPE?.url || null;
+          slim = tex.textures?.SKIN?.metadata?.model === "slim";
+        }catch{} }
+        const uuid = p.raw_id||trimUuid(p.id||"");
+        const uname = p.username;
+        return {
+          id: uuid, name: uname,
+          skin: skin || `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`,
+          cape, slim,
+          head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
+          history: null, legacy:false, raw:p, src:"playerdb"
+        };
+      }
+      if(r.status===400 || r.status===404 || (j && j.success===false)) return null;
+    }catch(e){ if(String(e.message||"").includes("Rate")) throw e; }
+    return null;
   },
   async optifineCape(name){
     try{
@@ -482,7 +510,7 @@ function viewHome(){
 
   <div class="section-title">The wall${favs.length?" \u00b7 \u2605 = your favorites":""}</div>
   <div class="face-wall">
-    ${wall.map(n=>`<a class="fw-tile${Store.isFav(n)?" fav":""}" data-link href="/@${esc(n)}"><img loading="lazy" alt="" src="https://mc-heads.net/avatar/${encodeURIComponent(n)}/64" onerror="this.classList.add('dead')"><span>${esc(n)}</span></a>`).join("")}
+    ${wall.map(n=>`<a class="fw-tile${Store.isFav(n)?" fav":""}" data-link href="/@${esc(n)}"><img loading="lazy" alt="" src="https://vrc.lol/head?username=${encodeURIComponent(n)}&size=64" onerror="this.classList.add('dead')"><span>${esc(n)}</span></a>`).join("")}
   </div>
 
   <div class="quick-rows">
@@ -520,8 +548,8 @@ async function viewProfile(ident, skinHashRoute){
   setFavicon(prof.skin);
   updateOg(prof);
 
-  const [laby, ofCape] = await Promise.all([ API.laby(prof.id), API.optifineCape(prof.name) ]);
-  renderProfile(prof, laby, ofCape);
+  const ofCape = await API.optifineCape(prof.name);
+  renderProfile(prof, prof.history, ofCape);
   if(skinHashRoute){
     const url = /^[0-9a-f]{30,40}$/i.test(skinHashRoute) ? labyTex(skinHashRoute) : mojangTex(skinHashRoute);
     openSkin(url, prof);
@@ -539,24 +567,29 @@ function profileSkeleton(){
     </div></div>`;
 }
 
-function renderProfile(prof, laby, ofCape){
+function renderProfile(prof, history_in, ofCape){
   TEX_SOURCES = {};
-  // prof.skin / prof.cape are textures.minecraft.net/texture/{64-char id}. mc-heads
-  // serves that id CORS-clean; also try by UUID and the raw CDN url (worker-wrapped).
+  const uname = encodeURIComponent(prof.name);
+  const uuid = trimUuid(prof.id);
+  // Current skin/cape: vrc.lol's own CORS proxy first (rock-solid), then mc-heads/
+  // crafthead by UUID, then the raw Mojang texture id (worker-wrapped) if we have it.
   if(prof.skin){
     const id = texHash(prof.skin);
     TEX_SOURCES[prof.skin] = [
+      `${VRC}/skin?username=${uname}&type=java`,
+      `https://mc-heads.net/skin/${uuid}`,
+      `https://crafthead.net/skin/${uuid}`,
       id ? `https://mc-heads.net/skin/${id}` : null,
-      `https://mc-heads.net/skin/${trimUuid(prof.id)}`,
-      `https://crafthead.net/skin/${trimUuid(prof.id)}`,
       id ? `https://textures.minecraft.net/texture/${id}` : null,
     ].filter(Boolean);
   }
   if(prof.cape){
     const id = texHash(prof.cape);
     TEX_SOURCES[prof.cape] = [
+      `${VRC}/cape?username=${uname}`,
+      `https://mc-heads.net/cape/${uuid}`,
+      `https://crafthead.net/cape/${uuid}`,
       id ? `https://mc-heads.net/cape/${id}` : null,
-      `https://crafthead.net/cape/${trimUuid(prof.id)}`,
       id ? `https://textures.minecraft.net/texture/${id}` : null,
     ].filter(Boolean);
   }
@@ -564,29 +597,14 @@ function renderProfile(prof, laby, ofCape){
   const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
   const skins = [];
   if(prof.skin) skins.push({url:prof.skin, slim:prof.slim, cap:"current", cur:true});
-  if(laby?.textures?.SKIN){
-    laby.textures.SKIN.forEach(s=>{
-      if(!s.image_hash) return;
-      if(s.active && prof.skin) return;
-      if(prof.skin && prof.skin.includes(s.image_hash)) return;
-      if(skins.some(x=>x.hash===s.image_hash)) return;
-      skins.push({url:labyTex(s.image_hash), hash:s.image_hash, file:s.file_hash||null, slim:!!s.slim_skin, cap:fmtDate(s.first_seen_at), cur:!!s.active});
-    });
-  }
   const capes = [];
   if(prof.cape) capes.push({url:prof.cape, cap:"active", cur:true});
-  if(laby?.textures?.CAPE){
-    laby.textures.CAPE.forEach(c=>{
-      if(!c.image_hash) return;
-      if(c.active && prof.cape) return;
-      if(prof.cape && prof.cape.includes(c.image_hash)) return;
-      if(capes.some(x=>x.hash===c.image_hash)) return;
-      capes.push({url:labyTex(c.image_hash), hash:c.image_hash, file:c.file_hash||null, cap:c.active?"active":fmtDate(c.first_seen_at), cur:!!c.active});
-    });
-  }
   if(ofCape) capes.push({url:ofCape, cap:"OptiFine", of:true});
 
-  const history = laby?.username_history || laby?.name_history || null;
+  // name history from vrc.lol: [{name, changed_at}] (changed_at = unix ms or null)
+  const history = Array.isArray(history_in) && history_in.length ? history_in.map(h=>({
+    name: h.name, changed_at: h.changed_at ? new Date(h.changed_at).toISOString() : null
+  })) : null;
   const favOn = Store.isFav(prof.name);
 
   app().innerHTML = `
@@ -643,36 +661,6 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
-  // Definitive historical-texture sourcing.
-  // - A real Mojang texture id is 64 hex chars → mc-heads serves it CORS-clean by id.
-  // - laby's own 32-char hash → laby.net/texture/image/{hash}.png (needs a CORS proxy).
-  // Try every viable mirror; withProxyFallbacks() also appends a worker twin of each.
-  const isMojangId = h => /^[0-9a-f]{64}$/i.test(h||"");
-  const skinSrc = (fileHash, imgHash) => {
-    const out=[];
-    if(isMojangId(fileHash)){
-      out.push(`https://mc-heads.net/skin/${fileHash}`, `https://textures.minecraft.net/texture/${fileHash}`);
-    }
-    if(imgHash){
-      out.push(`https://api.gapple.pw/cors/laby/image/${imgHash}`, `https://laby.net/texture/image/${imgHash}.png`);
-    }
-    if(fileHash && !isMojangId(fileHash)){
-      out.push(`https://api.gapple.pw/cors/laby/image/${fileHash}`, `https://laby.net/texture/image/${fileHash}.png`);
-    }
-    return out;
-  };
-  const capeSrc = (fileHash, imgHash) => {
-    const out=[];
-    if(isMojangId(fileHash)){
-      out.push(`https://mc-heads.net/cape/${fileHash}`, `https://textures.minecraft.net/texture/${fileHash}`);
-    }
-    if(imgHash){
-      out.push(`https://api.gapple.pw/cors/laby/image/${imgHash}`, `https://laby.net/texture/image/${imgHash}.png`, `https://api.gapple.pw/cors/laby/cape/${imgHash}`);
-    }
-    return out;
-  };
-  skins.forEach(s=>{ const src=skinSrc(s.file,s.hash); if(src.length) TEX_SOURCES[s.url]=src; });
-  capes.forEach(c=>{ const src=capeSrc(c.file,c.hash); if(src.length) TEX_SOURCES[c.url]=src; });
   // guarantee a cape on the 3D model — prefer the mojang cape, else the first available
   if(VIEWER){
     if(prof.cape) loadCapeSafe(prof.cape);
@@ -686,7 +674,7 @@ function renderProfile(prof, laby, ofCape){
 }
 
 function renderHistory(history){
-  if(!history || !history.length) return `<div class="unavailable">Name history unavailable — Mojang removed the public name-history endpoint in 2022, and laby.net had no record for this account.</div>`;
+  if(!history || !history.length) return `<div class="unavailable">No recorded name changes for this account.</div>`;
   const items = history.slice().reverse();
   return `<div class="timeline">${items.map(h=>`
     <div class="tl-item"><div class="tl-name">${esc(h.name||h.username||"?")}</div>
@@ -902,9 +890,8 @@ function paintGalleryTiles(){
     loadTexImg(url).then(img=>{
       if(!img){
         console.warn("[zombie.skin] tile failed:", url, "\n tried:", withProxyFallbacks(texCandidates(url)).join("\n "));
-        const ctx=cv.getContext("2d");
-        ctx.fillStyle="#141a14"; ctx.fillRect(0,0,cv.width,cv.height);
-        ctx.fillStyle="#59635a"; ctx.font="10px monospace"; ctx.fillText("n/a",22,36);
+        const tile = cv.closest(".tex");
+        if(tile) tile.style.display="none"; // hide unresolved tiles rather than showing n/a
         return;
       }
       if(kind==="skin") render2DFace(cv, normalizeSkin(img));
