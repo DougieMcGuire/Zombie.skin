@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v23 \u00b7 omni-history";
+const BUILD = "v24 \u00b7 dates+classify";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -994,17 +994,67 @@ function paintGalleryTiles(){
 // Pull raw responses from every known history source, harvest 64-hex Mojang
 // texture hashes, then load each from Mojang's CDN and classify by the image
 // itself: 64x64 = skin, 2:1 mostly-empty-right = cape, 2:1 full = legacy skin.
-function looksLikeCape(img){
+function rightHalfEmpty(img){
   try{
-    const c=document.createElement("canvas"); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    const c=document.createElement("canvas"); c.width=W; c.height=H;
     const x=c.getContext("2d"); x.drawImage(img,0,0);
-    const half=Math.floor(c.width/2);
-    const d=x.getImageData(half,0,c.width-half,c.height).data;
+    const half=Math.floor(W/2);
+    const d=x.getImageData(half,0,W-half,H).data;
     let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>10) n++;
-    return n < (d.length/4)*0.02; // right half nearly empty => cape sheet
+    return n < (d.length/4)*0.02;
   }catch{ return true; }
 }
-function addHistTile(kind, key, img, prof){
+// Bounding box of opaque pixels, normalized to a 64-wide sheet.
+function contentBBox(img){
+  try{
+    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    const c=document.createElement("canvas"); c.width=W; c.height=H;
+    const x=c.getContext("2d"); x.drawImage(img,0,0);
+    const d=x.getImageData(0,0,W,H).data;
+    let x1=0,y1=0,any=false;
+    for(let py=0;py<H;py++){ for(let pxi=0;pxi<W;pxi++){
+      if(d[(py*W+pxi)*4+3]>10){ any=true; if(pxi>x1)x1=pxi; if(py>y1)y1=py; }
+    }}
+    if(!any) return null;
+    const s=64/W;
+    return {x1:x1*s, y1:y1*(64/W)};
+  }catch{ return null; }
+}
+// Decide skin vs cape from the image itself.
+function classifyTexture(img){
+  const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+  if(!W||!H) return null;
+  const r=W/H;
+  if(Math.abs(r-2)<0.3) return rightHalfEmpty(img) ? "cape" : "skin"; // 2:1 sheet
+  if(Math.abs(r-1)<0.05){                                            // square sheet
+    const bb=contentBBox(img);
+    // a cape padded into a square canvas keeps its art in the top-left corner
+    if(bb && bb.x1<=26 && bb.y1<=20) return "cape";
+    return "skin";
+  }
+  return null;
+}
+// Pair each texture hash with a nearby date from the raw source text.
+function harvestDates(texts){
+  const map={};
+  const pats=[
+    /([0-9a-f]{64})[\s\S]{0,500}?"(?:first_seen_at|firstSeen|first_used|createdAt|created_at|added_at|addedAt|date|time)"\s*:\s*"([^"]{4,40})"/gi,
+    /([0-9a-f]{64})[\s\S]{0,400}?(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)/gi,
+    /([0-9a-f]{64})[\s\S]{0,300}?((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})/gi,
+  ];
+  texts.forEach(t=>{ if(!t) return; pats.forEach(p=>{ p.lastIndex=0; let m;
+    while((m=p.exec(t))){ const h=m[1].toLowerCase(); if(!map[h]) map[h]=m[2]; }
+  }); });
+  return map;
+}
+function fmtHistDate(v){
+  if(!v) return "past";
+  if(/^\d{4}-\d{2}-\d{2}/.test(v)) return fmtDate(v);
+  if(/^\d{10,13}$/.test(v)) return fmtDate(new Date(Number(v.length>10?v:v*1000)).toISOString());
+  return v;
+}
+function addHistTile(kind, key, img, prof, caption){
   const gal = document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
   if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
   const un = gal.querySelector(".unavailable"); if(un) un.remove();
@@ -1012,7 +1062,7 @@ function addHistTile(kind, key, img, prof){
   const cv=document.createElement("canvas"); cv.className="texcv";
   if(kind==="skin"){ cv.width=64; cv.height=64; render2DFace(cv, normalizeSkin(img)); d.dataset.skin=key; }
   else { cv.width=40; cv.height=64; drawCapeFront(cv,img); d.dataset.cape=key; }
-  const cap=document.createElement("span"); cap.className="cap"; cap.textContent="past";
+  const cap=document.createElement("span"); cap.className="cap"; cap.textContent=caption||"past";
   d.append(cv,cap); gal.appendChild(d);
   if(kind==="skin"){
     d.addEventListener("mouseenter",()=>loadSkinSafe(key, prof.slim?"slim":"default"));
@@ -1039,16 +1089,20 @@ async function loadHistory(prof, hadCapes){
   (texts.join(" ").match(/[0-9a-f]{64}/gi)||[]).forEach(h=>found.add(h.toLowerCase()));
   if(prof.skinId) found.delete(prof.skinId.toLowerCase());
   if(prof.capeId) found.delete(prof.capeId.toLowerCase());
-  const hashes=[...found].slice(0,48);
-  console.info("[zombie.skin] history: harvested", hashes.length, "texture hashes");
+  const dates = harvestDates(texts);
+  let hashes=[...found];
+  hashes.sort((a,b)=>{ const da=dates[a], db=dates[b];
+    if(da&&db) return String(db).localeCompare(String(da));
+    if(da) return -1; if(db) return 1; return 0; });
+  hashes=hashes.slice(0,48);
+  console.info("[zombie.skin] history:", hashes.length, "hashes,", Object.keys(dates).length, "dated");
   hashes.forEach(async h=>{
     const key=`hist:${h}`;
     TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${h}`), `${VRC}/cape?hash=${h}` ];
     const img=await loadTexImg(key);
     if(!img) return; // hash doesn't resolve to a real texture — junk, skip silently
-    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
-    if(W===H) addHistTile("skin", key, img, prof);
-    else if(W/H>1.8 && W/H<2.2){ looksLikeCape(img) ? addHistTile("cape", key, img, prof) : addHistTile("skin", key, img, prof); }
+    const kind=classifyTexture(img);
+    if(kind) addHistTile(kind, key, img, prof, fmtHistDate(dates[h]));
   });
 }
 
@@ -1221,4 +1275,4 @@ try{ const f=document.getElementById("foot"); if(f) f.querySelector("span").inne
 route();
 </script>
 </body>
-</html>ew
+</html>
