@@ -249,6 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
+const BUILD = "v7 \u00b7 texture-fix";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -282,9 +283,20 @@ function texCandidates(url){
   if(TEX_SOURCES[url]) return TEX_SOURCES[url];
   if(url.includes("laby.net/texture")){
     const h=texHash(url);
-    // worker first — it already reaches laby.net (name history/skin list load through it);
-    // gapple's public CORS mirror as a secondary.
-    return h ? [px(url), `https://api.gapple.pw/cors/laby/image/${h}`] : [px(url)];
+    if(!h) return [px(url)];
+    // gapple mirror sends CORS and needs no worker; then the worker on both
+    // the full-image and cropped laby endpoints as fallbacks.
+    return [
+      `https://api.gapple.pw/cors/laby/image/${h}`,
+      px(`https://laby.net/texture/image/${h}.png`),
+      px(`https://laby.net/texture/skin/${h}.png`),
+      `https://api.gapple.pw/cors/laby/cape/${h}`,
+    ];
+  }
+  if(url.includes("textures.minecraft.net")){
+    // Mojang's texture CDN blocks Cloudflare Workers; mc-heads mirrors it with CORS.
+    const h=texHash(url);
+    return h ? [`https://textures.minecraft.net/texture/${h}`, px(url)] : [px(url)];
   }
   return [px(url), url];
 }
@@ -973,6 +985,7 @@ document.addEventListener("keydown",e=>{
 });
 
 /* -------------------- boot -------------------- */
+try{ const f=document.getElementById("foot"); if(f) f.querySelector("span").innerHTML += ` \u00b7 build ${BUILD}`; }catch{}
 route();
 </script>
 </body>
