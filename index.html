@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v20 \u00b7 all-history";
+const BUILD = "v21 \u00b7 canvas-tiles";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -441,6 +441,7 @@ const API = {
     if(pdb && pdb.rate && !vrc) throw new Error("Rate limited \u2014 try again in a moment");
     const skinHist = (crafty && crafty.skins && crafty.skins.length) ? crafty.skins : null;
     const capeHist = (crafty && crafty.capes && crafty.capes.length) ? crafty.capes : null;
+    console.info("[zombie.skin] crafty history:", (skinHist||[]).length, "skins,", (capeHist||[]).length, "capes");
     // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history + crafty skins/capes.
     if(pdb && pdb.id){
       const uname = pdb.name;
@@ -747,9 +748,7 @@ function renderProfile(prof, history_in, ofCape){
       <div class="gallery" id="skinGallery">
         ${skins.length? skins.map((s,i)=>`<div class="tex ${i===0?"active":""}" data-skin="${esc(s.url)}" data-slim="${s.slim?1:0}">
             ${s.cur?`<span class="flag">●</span>`:""}
-            ${s.hash3d
-              ? `<img class="skin3d" loading="lazy" alt="" src="https://render.crafty.gg/3d/full/${s.hash3d}?width=116&height=176" onerror="this.closest('.tex').style.display='none'">`
-              : `<canvas class="texcv" width="64" height="64" data-tex="${esc(s.url)}" data-kind="skin"></canvas>`}
+            <canvas class="texcv" width="64" height="64" data-tex="${esc(s.url)}" data-kind="skin"></canvas>
             <span class="cap">${esc(s.cap)}</span></div>`).join("")
           : `<div class="unavailable">No skins found.</div>`}
       </div>
@@ -997,8 +996,10 @@ function paintGalleryTiles(){
     loadTexImg(url).then(img=>{
       if(!img){
         console.warn("[zombie.skin] tile failed:", url, "\n tried:", withProxyFallbacks(texCandidates(url)).join("\n "));
-        const tile = cv.closest(".tex");
-        if(tile) tile.style.display="none"; // hide unresolved tiles rather than showing n/a
+        const ctx=cv.getContext("2d");
+        ctx.fillStyle="#10140f"; ctx.fillRect(0,0,cv.width,cv.height);
+        ctx.strokeStyle="#26302a"; ctx.strokeRect(0.5,0.5,cv.width-1,cv.height-1);
+        ctx.fillStyle="#4a5a4a"; ctx.font="18px monospace"; ctx.fillText("\u2715", cv.width/2-6, cv.height/2+6);
         return;
       }
       if(kind==="skin") render2DFace(cv, normalizeSkin(img));
