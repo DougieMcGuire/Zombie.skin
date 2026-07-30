@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v7 \u00b7 texture-fix";
+const BUILD = "v8 \u00b7 mirror-race";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -272,20 +272,38 @@ const NAME_RE = /^[a-zA-Z0-9_]{1,16}$/;
 const DEFAULT_FAVICON = document.getElementById("favicon").href;
 
 function px(url){ return CONFIG.WORKER.replace(/\/$/,"") + "/?url=" + encodeURIComponent(url); }
-/* Texture loading — browser-direct from CORS-enabled mirrors first (Mojang + laby
-   block image fetches from Cloudflare Workers), the worker only as last resort.
-   Everything becomes a same-origin blob URL, so canvases stay clean. */
+/* Texture loading — race several independent CORS mirrors at once and take the
+   first valid PNG. No single host can break the site (crafatar 521s, laby blocks
+   Workers, etc.). Everything ends as a same-origin blob so canvases stay clean. */
 let TEX_SOURCES = {};
 const TEX_CACHE = {};
 const texHash = u => (String(u).match(/([0-9a-f]{16,64})/i)||[])[1] || "";
+
+function skinSourcesByUuid(uuid){
+  const id = trimUuid(uuid);
+  return [
+    `https://mc-heads.net/skin/${id}`,
+    `https://crafthead.net/skin/${id}`,
+    `https://api.mineatar.io/skin/${id}`,
+    `https://textures.minecraft.net/texture/${id}`, // ignored if not a texture id
+    `https://crafatar.com/skins/${id}`,
+    px(`https://crafthead.net/skin/${id}`),
+  ];
+}
+function capeSourcesByUuid(uuid){
+  const id = trimUuid(uuid);
+  return [
+    `https://crafthead.net/cape/${id}`,
+    `https://mc-heads.net/cape/${id}`,
+    `https://crafatar.com/capes/${id}`,
+    px(`https://crafthead.net/cape/${id}`),
+  ];
+}
 function texCandidates(url){
   if(url.startsWith("blob:")||url.startsWith("data:")) return [url];
   if(TEX_SOURCES[url]) return TEX_SOURCES[url];
-  if(url.includes("laby.net/texture")){
-    const h=texHash(url);
-    if(!h) return [px(url)];
-    // gapple mirror sends CORS and needs no worker; then the worker on both
-    // the full-image and cropped laby endpoints as fallbacks.
+  const h = texHash(url);
+  if(url.includes("laby.net/texture") && h){
     return [
       `https://api.gapple.pw/cors/laby/image/${h}`,
       px(`https://laby.net/texture/image/${h}.png`),
@@ -293,31 +311,43 @@ function texCandidates(url){
       `https://api.gapple.pw/cors/laby/cape/${h}`,
     ];
   }
-  if(url.includes("textures.minecraft.net")){
-    // Mojang's texture CDN blocks Cloudflare Workers; mc-heads mirrors it with CORS.
-    const h=texHash(url);
-    return h ? [`https://textures.minecraft.net/texture/${h}`, px(url)] : [px(url)];
+  if(url.includes("textures.minecraft.net") && h){
+    return [ `https://textures.minecraft.net/texture/${h}`, `https://crafthead.net/skin/${h}`, px(url) ];
   }
   return [px(url), url];
+}
+
+// resolve one candidate URL to a blob URL (or null)
+async function tryOne(cand){
+  try{
+    const r = await fetch(cand);
+    if(!r.ok) return null;
+    const ct = (r.headers.get("content-type")||"").toLowerCase();
+    if(ct.includes("json") || ct.includes("html")) return null;
+    const b = await r.blob();
+    if(b.size < 80) return null;
+    return URL.createObjectURL(b);
+  }catch{ return null; }
+}
+// race all candidates; return the first that succeeds
+async function raceCandidates(cands){
+  return new Promise(resolve=>{
+    let left = cands.length, done = false;
+    if(!left) return resolve(null);
+    cands.forEach(c=>tryOne(c).then(u=>{
+      if(done) { if(u) URL.revokeObjectURL(u); return; }
+      if(u){ done = true; resolve(u); }
+      else if(--left === 0){ resolve(null); }
+    }));
+  });
 }
 async function fetchTexUrl(url){
   if(!url) return null;
   if(url.startsWith("blob:")||url.startsWith("data:")) return url;
   if(TEX_CACHE[url]) return TEX_CACHE[url];
-  for(const cand of texCandidates(url)){
-    try{
-      const r = await fetch(cand);
-      if(!r.ok) continue;
-      const ct = (r.headers.get("content-type")||"").toLowerCase();
-      if(ct.includes("json") || ct.includes("html")) continue; // error page, not an image
-      const b = await r.blob();
-      if(b.size < 80) continue;
-      const u = URL.createObjectURL(b);
-      TEX_CACHE[url]=u;
-      return u;
-    }catch{}
-  }
-  return null;
+  const u = await raceCandidates(texCandidates(url));
+  if(u) TEX_CACHE[url] = u;
+  return u;
 }
 function imgFrom(src){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
 async function loadTexImg(url){ const u=await fetchTexUrl(url); return u?imgFrom(u):null; }
@@ -501,8 +531,8 @@ function profileSkeleton(){
 
 function renderProfile(prof, laby, ofCape){
   TEX_SOURCES = {};
-  if(prof.skin) TEX_SOURCES[prof.skin] = [`https://crafatar.com/skins/${prof.id}`, `https://crafthead.net/skin/${prof.id}`, px(prof.skin)];
-  if(prof.cape) TEX_SOURCES[prof.cape] = [`https://crafatar.com/capes/${prof.id}`, px(prof.cape)];
+  if(prof.skin) TEX_SOURCES[prof.skin] = skinSourcesByUuid(prof.id);
+  if(prof.cape) TEX_SOURCES[prof.cape] = capeSourcesByUuid(prof.id);
   const isOwner = CONFIG.OWNER && prof.name && prof.name.toLowerCase()===CONFIG.OWNER.toLowerCase();
   const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
   const skins = [];
@@ -586,7 +616,11 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
-  if(!prof.cape && capes.length) loadCapeSafe(capes[0].url);
+  // guarantee a cape on the 3D model — prefer the mojang cape, else the first available
+  if(VIEWER){
+    if(prof.cape) loadCapeSafe(prof.cape);
+    else if(capes.length) loadCapeSafe(capes[0].url);
+  }
   paintGalleryTiles();
   $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
   $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
