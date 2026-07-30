@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v14 \u00b7 vrc";
+const BUILD = "v15 \u00b7 pdb-live";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -385,62 +385,80 @@ const Store = {
 
 /* -------------------- API layer (JSON + canvas loads go via Worker) --------------------
    NOTE: Mojang's own API (api.mojang.com / sessionserver) 403-blocks requests coming
-   Primary source: vrc.lol — a NameMC-style API with UUID, name history, and its own
-   CORS-enabled skin/cape image proxy (no worker needed for images). PlayerDB is the
-   fallback for the UUID + raw Mojang textures payload. */
+   Identity + textures come from PlayerDB (live Mojang session data → accurate current
+   skin, cape, and slim/classic). Name history comes from vrc.lol. vrc.lol is also a
+   full fallback if PlayerDB can't resolve the player. */
 const VRC = "https://vrc.lol";
 const API = {
-  async lookup(ident){
-    // Try vrc.lol first (gives name history + working image proxy).
-    try{
-      const r = await fetch(`${VRC}/api?username=${encodeURIComponent(ident)}`);
-      if(r.status!==429){
-        const j = await r.json().catch(()=>null);
-        if(j && j.success && j.java && j.java.uuid){
-          const jv = j.java;
-          return {
-            id: trimUuid(jv.uuid),
-            name: jv.username || ident,
-            skin: `${VRC}/skin?username=${encodeURIComponent(jv.username||ident)}&type=java`,
-            cape: jv.cape_url ? (jv.cape_url.startsWith("http")?jv.cape_url:VRC+jv.cape_url) : `${VRC}/cape?username=${encodeURIComponent(jv.username||ident)}`,
-            head: `${VRC}/head?username=${encodeURIComponent(jv.username||ident)}&size=128`,
-            slim: !!jv.slim,
-            history: Array.isArray(jv.name_history) ? jv.name_history : null,
-            legacy: false, raw: jv, src: "vrc"
-          };
-        }
-        if(r.status===404 || (j && j.success===false && (j.code==="NOT_FOUND"))) {
-          // fall through to PlayerDB in case vrc simply hasn't cached it
-        }
-      }
-    }catch{}
-    // Fallback: PlayerDB (UUID + textures payload)
+  async _playerdb(ident){
     try{
       const r = await fetch(px(`https://playerdb.co/api/player/minecraft/${encodeURIComponent(ident)}`));
-      if(r.status===429) throw new Error("Rate limited \u2014 try again in a moment");
+      if(r.status===429) return {rate:true};
       const j = await r.json().catch(()=>null);
       if(j && j.success && j.data?.player){
         const p=j.data.player;
-        let skin=null, cape=null, slim=false;
+        let skinId=null, capeId=null, slim=false;
         const prop=(p.properties||[]).find(x=>x.name==="textures");
         if(prop){ try{
           const tex=b64json(prop.value);
-          skin = tex.textures?.SKIN?.url || null;
-          cape = tex.textures?.CAPE?.url || null;
+          skinId = texHash(tex.textures?.SKIN?.url||"") || null;
+          capeId = texHash(tex.textures?.CAPE?.url||"") || null;
           slim = tex.textures?.SKIN?.metadata?.model === "slim";
         }catch{} }
-        const uuid = p.raw_id||trimUuid(p.id||"");
-        const uname = p.username;
+        return { id:(p.raw_id||trimUuid(p.id||"")), name:p.username, skinId, capeId, slim };
+      }
+    }catch{}
+    return null;
+  },
+  async _vrc(ident){
+    try{
+      const r = await fetch(`${VRC}/api?username=${encodeURIComponent(ident)}`);
+      const j = await r.json().catch(()=>null);
+      if(j && j.success && j.java && j.java.uuid){
+        const jv=j.java;
         return {
-          id: uuid, name: uname,
-          skin: skin || `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`,
-          cape, slim,
-          head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
-          history: null, legacy:false, raw:p, src:"playerdb"
+          id:trimUuid(jv.uuid), name:jv.username||ident,
+          slim: !!jv.slim,
+          history: Array.isArray(jv.name_history)?jv.name_history:null,
+          hasCape: !!jv.cape_url
         };
       }
-      if(r.status===400 || r.status===404 || (j && j.success===false)) return null;
-    }catch(e){ if(String(e.message||"").includes("Rate")) throw e; }
+    }catch{}
+    return null;
+  },
+  async lookup(ident){
+    const [pdb, vrc] = await Promise.all([ this._playerdb(ident), this._vrc(ident) ]);
+    if(pdb && pdb.rate && !vrc) throw new Error("Rate limited \u2014 try again in a moment");
+    // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history.
+    if(pdb && pdb.id){
+      const uname = pdb.name;
+      return {
+        id: pdb.id, name: uname,
+        // render the CURRENT skin from its live Mojang texture id (CORS-clean via mc-heads),
+        // with by-UUID renders as fallback. skin URL is just a stable key here.
+        skin: pdb.skinId ? mojangTex(pdb.skinId) : `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`,
+        skinId: pdb.skinId,
+        cape: pdb.capeId ? mojangTex(pdb.capeId) : (vrc && vrc.hasCape ? `${VRC}/cape?username=${encodeURIComponent(uname)}` : null),
+        capeId: pdb.capeId,
+        slim: pdb.slim,
+        head: `https://mc-heads.net/head/${pdb.id}/128`,
+        history: (vrc && vrc.history) || null,
+        legacy:false, raw:pdb, src:"playerdb"
+      };
+    }
+    // Fallback: vrc.lol only
+    if(vrc && vrc.id){
+      const uname = vrc.name;
+      return {
+        id: vrc.id, name: uname,
+        skin: `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`, skinId:null,
+        cape: vrc.hasCape ? `${VRC}/cape?username=${encodeURIComponent(uname)}` : null, capeId:null,
+        slim: vrc.slim,
+        head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
+        history: vrc.history || null,
+        legacy:false, raw:vrc, src:"vrc"
+      };
+    }
     return null;
   },
   async optifineCape(name){
@@ -571,26 +589,26 @@ function renderProfile(prof, history_in, ofCape){
   TEX_SOURCES = {};
   const uname = encodeURIComponent(prof.name);
   const uuid = trimUuid(prof.id);
-  // Current skin/cape: vrc.lol's own CORS proxy first (rock-solid), then mc-heads/
-  // crafthead by UUID, then the raw Mojang texture id (worker-wrapped) if we have it.
+  // Current skin/cape sourcing, most-accurate first:
+  //  1) mc-heads by the live Mojang texture id (exact current skin, CORS-clean)
+  //  2) crafthead / mc-heads by UUID (renders the account's current skin)
+  //  3) vrc.lol proxy (last resort; may be cached/stale)
   if(prof.skin){
-    const id = texHash(prof.skin);
     TEX_SOURCES[prof.skin] = [
-      `${VRC}/skin?username=${uname}&type=java`,
-      `https://mc-heads.net/skin/${uuid}`,
+      prof.skinId ? `https://mc-heads.net/skin/${prof.skinId}` : null,
       `https://crafthead.net/skin/${uuid}`,
-      id ? `https://mc-heads.net/skin/${id}` : null,
-      id ? `https://textures.minecraft.net/texture/${id}` : null,
+      `https://mc-heads.net/skin/${uuid}`,
+      `${VRC}/skin?username=${uname}&type=java`,
+      prof.skinId ? `https://textures.minecraft.net/texture/${prof.skinId}` : null,
     ].filter(Boolean);
   }
   if(prof.cape){
-    const id = texHash(prof.cape);
     TEX_SOURCES[prof.cape] = [
-      `${VRC}/cape?username=${uname}`,
-      `https://mc-heads.net/cape/${uuid}`,
+      prof.capeId ? `https://mc-heads.net/cape/${prof.capeId}` : null,
       `https://crafthead.net/cape/${uuid}`,
-      id ? `https://mc-heads.net/cape/${id}` : null,
-      id ? `https://textures.minecraft.net/texture/${id}` : null,
+      `https://mc-heads.net/cape/${uuid}`,
+      `${VRC}/cape?username=${uname}`,
+      prof.capeId ? `https://textures.minecraft.net/texture/${prof.capeId}` : null,
     ].filter(Boolean);
   }
   const isOwner = CONFIG.OWNER && prof.name && prof.name.toLowerCase()===CONFIG.OWNER.toLowerCase();
