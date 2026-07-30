@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v28 \u00b7 namemc-parity";
+const BUILD = "v29 \u00b7 full-history";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -1076,15 +1076,20 @@ async function loadHistory(prof){
   const get=async(u)=>{ try{ const r=await fetch(px(u)); return r.ok?await r.text():""; }catch{ return ""; } };
   // Player-specific endpoints only. laby's textures.SKIN[]/CAPE[] are the COMPLETE
   // history (not a preview); capes.dev spans OptiFine/LabyMod/MinecraftCapes too.
-  const [labyV3,labyV2,craftyJ,capesDevJ,capesMeJ,capesCatJ] = await Promise.all([
+  const [labyV3,labyV2,craftyJ,craftyPage,capesDevJ,capesMeJ,capesMeJ2,capesCatJ] = await Promise.all([
     get(`https://laby.net/api/v3/user/${uuidD}/profile`),
     get(`https://laby.net/api/v2/user/${uuidD}/get-profile`),
     get(`https://api.crafty.gg/api/v2/players/${uname}`),
+    get(`https://crafty.gg/@${uname}`),            // PROVEN: 64-char Mojang skin hashes
     get(`https://api.capes.dev/load/${uuidT}`),
     get(`https://capes.me/api/user/${uuidT}`),
+    get(`https://capes.me/api/${uname}`),
     get(`https://capes.me/api/capes`),
   ]);
 
+  const allTexts=[labyV3,labyV2,craftyJ,craftyPage,capesDevJ,capesMeJ,capesMeJ2];
+  const allDates=harvestDates(allTexts);
+  const dateFor=(t,h)=>allDates[h]||null;
   const seen=new Set();
   const cur=[(prof.skinId||"").toLowerCase(),(prof.capeId||"").toLowerCase()];
   let nSkin=0,nCape=0;
@@ -1138,12 +1143,14 @@ async function loadHistory(prof){
       nCape++; place("cape",`moj:${h}`,mojSrc(h),capeName(h)||"cape");
     });
   }catch{}
-  { let m,re2=/render\.crafty\.gg\/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi;
-    while((m=re2.exec(craftyJ))){ const h=m[1].toLowerCase(); if(cur.includes(h)) continue;
-      nSkin++; place("skin",`moj:${h}`,mojSrc(h),"past"); } }
+  [craftyPage,craftyJ].forEach(t=>{
+    let m,re2=/render\.crafty\.gg\/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi;
+    while((m=re2.exec(t))){ const h=m[1].toLowerCase(); if(cur.includes(h)) continue;
+      nSkin++; place("skin",`moj:${h}`,mojSrc(h),fmtHistDate(dateFor(t,h))); }
+  });
 
   // --- capes.me: OWNED official capes, joined to the catalog for real names ---
-  try{ const j=JSON.parse(capesMeJ);
+  [capesMeJ,capesMeJ2].forEach(txt=>{ try{ const j=JSON.parse(txt);
     (j.capes||[]).forEach(c=>{
       const t=String(c.type||"").toLowerCase().replace(/[^a-z0-9]/g,"");
       let hash=null;
@@ -1153,7 +1160,10 @@ async function loadHistory(prof){
       if(!hash) return;
       nCape++; place("cape",`moj:${hash}`,mojSrc(hash), (CAPE_CATALOG[hash]||"cape")+(c.removed?" (removed)":""));
     });
-  }catch{}
+    // any bare Mojang hash in the player payload is a cape we can render + name
+    (String(txt).match(/[0-9a-f]{64}/gi)||[]).forEach(h=>{ h=h.toLowerCase();
+      if(cur.includes(h)) return; nCape++; place("cape",`moj:${h}`,mojSrc(h),capeName(h)||"cape"); });
+  }catch{} });
 
   // --- capes.dev: OptiFine / LabyMod / MinecraftCapes / Mojang, all ecosystems ---
   try{ const j=JSON.parse(capesDevJ);
