@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zombie.skin — Minecraft profile lookup</title>
+<title>Zombie.skin — Minecrafft profile lookup</title>
 <meta name="description" content="Look up any Minecraft player: 3D skin you can spin, capes, UUID, name history and downloadable skin variants.">
 <meta property="og:title" content="Zombie.skin — Minecraft profile lookup">
 <meta property="og:description" content="3D skins, capes, UUID and name history for any Minecraft player.">
@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v10 \u00b7 proxy-all";
+const BUILD = "v11 \u00b7 texid";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -312,7 +312,7 @@ function texCandidates(url){
     ];
   }
   if(url.includes("textures.minecraft.net") && h){
-    return [ `https://textures.minecraft.net/texture/${h}`, `https://crafthead.net/skin/${h}`, px(url) ];
+    return [ `https://textures.minecraft.net/texture/${h}`, px(`https://textures.minecraft.net/texture/${h}`) ];
   }
   return [px(url), url];
 }
@@ -626,22 +626,18 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
-  // Register best sources for every historical texture. crafthead.net is ALREADY
-  // proven working for this user (current skin loads through it) and accepts a raw
-  // texture id, so it leads; Mojang CDN + laby mirrors follow.
+  // Historical textures are keyed by a raw TEXTURE ID (file_hash). Only Mojang's
+  // own CDN + laby serve those correctly — crafthead/mc-heads treat the path as a
+  // UUID and return a default Steve/Alex, so they are NOT used here.
   const histSources = (fileHash, imgHash) => {
     const out = [];
-    if(fileHash){ out.push(`https://crafthead.net/skin/${fileHash}`, `https://textures.minecraft.net/texture/${fileHash}`, `https://mc-heads.net/skin/${fileHash}`); }
+    if(fileHash) out.push(`https://textures.minecraft.net/texture/${fileHash}`);
     if(imgHash){ out.push(`https://api.gapple.pw/cors/laby/image/${imgHash}`, px(`https://laby.net/texture/image/${imgHash}.png`)); }
+    if(fileHash) out.push(px(`https://textures.minecraft.net/texture/${fileHash}`));
     return out;
   };
   skins.forEach(s=>{ const src=histSources(s.file,s.hash); if(src.length) TEX_SOURCES[s.url]=src; });
-  capes.forEach(c=>{
-    const out=[];
-    if(c.file){ out.push(`https://textures.minecraft.net/texture/${c.file}`, `https://crafthead.net/cape/${c.file}`); }
-    if(c.hash){ out.push(`https://api.gapple.pw/cors/laby/image/${c.hash}`, px(`https://laby.net/texture/image/${c.hash}.png`)); }
-    if(out.length) TEX_SOURCES[c.url]=out;
-  });
+  capes.forEach(c=>{ const src=histSources(c.file,c.hash); if(src.length) TEX_SOURCES[c.url]=src; });
   // guarantee a cape on the 3D model — prefer the mojang cape, else the first available
   if(VIEWER){
     if(prof.cape) loadCapeSafe(prof.cape);
