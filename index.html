@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v16 \u00b7 history+cape";
+const BUILD = "v17 \u00b7 allcapes+hist";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -270,6 +270,15 @@ const app = ()=>document.getElementById("app");
 const UUID_RE = /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/;
 const NAME_RE = /^[a-zA-Z0-9_]{1,16}$/;
 const DEFAULT_FAVICON = document.getElementById("favicon").href;
+
+// Official Minecraft cape texture hashes → display names (for labeling the gallery).
+// Only well-established hashes; unknown capes fall back to crafty's name or "cape".
+const CAPE_NAMES = {
+  "2340c0e03dd24a11b15a8b33c2a7e9e32abb2051b2481d0ba7defd635ca7a933":"Migrator",
+  "1981aad373fa9754d5b5867c4c0b1c39a83f894873f156cffc50b392ba4a3f7b":"MineCon 2011",
+  "e7dfea16dc83c97df01a12fabbd1216359c0cd0ea42f9999b6e97c584963e980":"MineCon 2016",
+  "70efffaf86fe5bc089608d3cb297d3e276b9eb7a8f9f2fe6659c23a2d8b18edf":"15th Anniversary"
+};
 
 function px(url){ return CONFIG.WORKER.replace(/\/$/,"") + "/?url=" + encodeURIComponent(url); }
 /* Texture loading — race several independent CORS mirrors at once and take the
@@ -430,7 +439,8 @@ const API = {
     const [pdb, vrc, crafty] = await Promise.all([ this._playerdb(ident), this._vrc(ident), this._crafty(ident) ]);
     if(pdb && pdb.rate && !vrc) throw new Error("Rate limited \u2014 try again in a moment");
     const skinHist = (crafty && crafty.skins && crafty.skins.length) ? crafty.skins : null;
-    // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history + crafty skins.
+    const capeHist = (crafty && crafty.capes && crafty.capes.length) ? crafty.capes : null;
+    // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history + crafty skins/capes.
     if(pdb && pdb.id){
       const uname = pdb.name;
       return {
@@ -443,6 +453,7 @@ const API = {
         head: `https://mc-heads.net/head/${pdb.id}/128`,
         history: (vrc && vrc.history) || null,
         skinHistory: skinHist,
+        capeHistory: capeHist,
         legacy:false, raw:pdb, src:"playerdb"
       };
     }
@@ -457,27 +468,40 @@ const API = {
         head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
         history: vrc.history || null,
         skinHistory: skinHist,
+        capeHistory: capeHist,
         legacy:false, raw:vrc, src:"vrc"
       };
     }
     return null;
   },
   async _crafty(ident){
-    // crafty.gg tracks skin history; not Mojang infra, so the worker can reach it.
+    // crafty.gg tracks full skin + cape history (stores 64-char Mojang hashes).
+    // Not Mojang infra, so the worker can reach it. Parse defensively — the API
+    // shape isn't fully documented, so scan for skin/cape arrays wherever they sit.
     try{
       const r = await fetch(px(`https://api.crafty.gg/api/v2/players/${encodeURIComponent(ident)}`));
       if(!r.ok) return null;
       const j = await r.json().catch(()=>null);
-      const d = j && (j.data || j);
-      if(!d) return null;
-      const skins = Array.isArray(d.skins) ? d.skins : [];
-      // each skin: {hash, url?, id?, createdAt?/created_at?}
-      const hist = skins.map(s=>({
-        hash: s.hash || texHash(s.url||"") || null,
-        url: s.url || (s.hash ? `https://textures.minecraft.net/texture/${s.hash}` : null),
-        at: s.createdAt || s.created_at || s.firstSeen || null
-      })).filter(x=>x.hash || x.url);
-      return { skins: hist };
+      if(!j) return null;
+      const d = j.data || j;
+      const hash64 = s => (String(s).match(/([0-9a-f]{64})/i)||[])[1] || null;
+      const collect = (arr) => {
+        if(!Array.isArray(arr)) return [];
+        return arr.map(x=>{
+          if(typeof x === "string"){ return { hash:hash64(x), at:null }; }
+          const hash = hash64(x.hash||"") || hash64(x.url||"") || hash64(x.texture||"") || hash64(x.id||"") || null;
+          const at = x.createdAt || x.created_at || x.firstSeen || x.first_seen || x.addedAt || x.date || null;
+          return { hash, at, name: x.name || x.title || null };
+        }).filter(x=>x.hash);
+      };
+      // find candidate arrays anywhere one level deep
+      const skinArr = d.skins || d.skinHistory || d.skin_history || (d.textures&&d.textures.skins) || [];
+      const capeArr = d.capes || d.capeHistory || d.cape_history || (d.textures&&d.textures.capes) || [];
+      let skins = collect(skinArr);
+      let capes = collect(capeArr);
+      // de-dup by hash, keep order (newest-first as crafty returns)
+      const uniq = list => { const seen=new Set(); return list.filter(x=>!seen.has(x.hash)&&seen.add(x.hash)); };
+      return { skins:uniq(skins), capes:uniq(capes) };
     }catch{}
     return null;
   },
@@ -654,8 +678,24 @@ function renderProfile(prof, history_in, ofCape){
     });
   }
   const capes = [];
-  if(prof.cape) capes.push({url:prof.cape, cap:"active", cur:true});
-  if(ofCape) capes.push({url:ofCape, cap:"OptiFine", of:true});
+  const capeSeen = new Set();
+  const addCape = (obj) => { const k=obj.hash||obj.url; if(k && !capeSeen.has(k)){ capeSeen.add(k); capes.push(obj); } };
+  if(prof.capeId){ addCape({url:prof.cape, hash:prof.capeId, cap: CAPE_NAMES[prof.capeId]||"active", cur:true}); }
+  else if(prof.cape){ addCape({url:prof.cape, cap:"active", cur:true}); }
+  // full cape history from crafty
+  if(Array.isArray(prof.capeHistory)){
+    prof.capeHistory.forEach(h=>{
+      if(!h.hash || capeSeen.has(h.hash)) return;
+      const key = `capehist:${h.hash}`;
+      TEX_SOURCES[key] = [
+        `https://mc-heads.net/cape/${h.hash}`,
+        `https://crafty.gg/api/v2/capes/${h.hash}`,
+        `https://textures.minecraft.net/texture/${h.hash}`,
+      ].filter(Boolean);
+      addCape({url:key, hash:h.hash, cap: CAPE_NAMES[h.hash] || h.name || (h.at?fmtDate(h.at):"cape"), cur:false});
+    });
+  }
+  if(ofCape) addCape({url:ofCape, cap:"OptiFine", of:true});
 
   // name history from vrc.lol: [{name, changed_at}] (changed_at = unix ms or null)
   const history = Array.isArray(history_in) && history_in.length ? history_in.map(h=>({
