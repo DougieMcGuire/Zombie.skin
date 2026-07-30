@@ -225,7 +225,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
   // 1) Paste your deployed Cloudflare Worker URL here (no trailing slash):
-  WORKER: "https://zombie.dtm2210.workers.dev/",
+  WORKER: "https://zombieskin-proxy.YOURNAME.workers.dev",
   // 2) "" for a custom domain (zombie.skin) or user.github.io root;
   //    "/REPO" if hosted at user.github.io/REPO (also set pathSegmentsToKeep=1 in 404.html)
   BASE: "",
@@ -263,26 +263,30 @@ const Store = {
   toggleFav(name){ let f=this.favs(); if(this.isFav(name)) f=f.filter(x=>x.toLowerCase()!==name.toLowerCase()); else f.unshift(name); this.set("zs_favs",f.slice(0,50)); return this.isFav(name); }
 };
 
-/* -------------------- API layer (JSON + canvas loads go via Worker) -------------------- */
+/* -------------------- API layer (JSON + canvas loads go via Worker) --------------------
+   NOTE: Mojang's own API (api.mojang.com / sessionserver) 403-blocks requests coming
+   from Cloudflare Workers' shared IPs, so profile data comes from PlayerDB instead —
+   same textures payload, accepts a username OR a UUID in one call. */
 const API = {
-  async resolveName(name){
-    const r = await fetch(px(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(name)}`));
-    if(r.status===204 || r.status===404) return null;
-    if(!r.ok) throw new Error("Mojang API error "+r.status);
-    return r.json();
-  },
-  async profile(uuid){
-    const r = await fetch(px(`https://sessionserver.mojang.com/session/minecraft/profile/${trimUuid(uuid)}?unsigned=false`));
-    if(r.status===204||r.status===404) return null;
-    if(!r.ok) throw new Error("Session server error "+r.status);
-    const j = await r.json();
-    const prop = (j.properties||[]).find(p=>p.name==="textures");
-    let tex={};
-    if(prop){ try{ tex=b64json(prop.value); }catch{} }
-    const skin = tex.textures?.SKIN?.url || null;
-    const cape = tex.textures?.CAPE?.url || null;
-    const slim = tex.textures?.SKIN?.metadata?.model === "slim";
-    return { id:j.id, name:j.name, skin, cape, slim, legacy:!!j.legacy, actions:j.profileActions||[], raw:j };
+  async lookup(ident){
+    const r = await fetch(px(`https://playerdb.co/api/player/minecraft/${encodeURIComponent(ident)}`));
+    if(r.status===429) throw new Error("Rate limited \u2014 try again in a moment");
+    let j=null; try{ j=await r.json(); }catch{}
+    if(j && j.success && j.data?.player){
+      const p=j.data.player;
+      let skin=null, cape=null, slim=false;
+      const prop=(p.properties||[]).find(x=>x.name==="textures");
+      if(prop){ try{
+        const tex=b64json(prop.value);
+        skin = tex.textures?.SKIN?.url || null;
+        cape = tex.textures?.CAPE?.url || null;
+        slim = tex.textures?.SKIN?.metadata?.model === "slim";
+      }catch{} }
+      if(!skin && p.skin_texture) skin=p.skin_texture;
+      return { id:(p.raw_id||trimUuid(p.id||"")), name:p.username, skin, cape, slim, legacy:false, raw:p };
+    }
+    if(r.status===400 || r.status===404 || (j && j.success===false)) return null;
+    throw new Error("Lookup failed (HTTP "+r.status+")");
   },
   async laby(uuid){
     try{
@@ -303,6 +307,7 @@ const API = {
 };
 const mojangTex = h => `https://textures.minecraft.net/texture/${h}`;
 const labyTex  = h => `https://laby.net/texture/image/${h}.png`;
+const craftheadSkin = uuid => `https://crafthead.net/skin/${uuid}`; // CORS-enabled fallback for the current skin
 
 /* -------------------- ROUTER -------------------- */
 function base(){ return CONFIG.BASE.replace(/\/$/,""); }
@@ -378,7 +383,7 @@ function fillMiniRow(sel, names){
 }
 
 /* -------------------- PROFILE -------------------- */
-let VIEWER=null, CURRENT=null;
+let VIEWER=null, CURRENT=null, SKIN_FALLBACK={};
 function destroyViewer(){ if(VIEWER){ try{VIEWER.dispose();}catch{} VIEWER=null; } }
 
 async function viewProfile(ident, skinHashRoute){
@@ -386,16 +391,9 @@ async function viewProfile(ident, skinHashRoute){
   app().innerHTML = profileSkeleton();
   let prof;
   try{
-    let uuid;
-    if(UUID_RE.test(ident)){ uuid = trimUuid(ident); }
-    else {
-      if(!NAME_RE.test(ident)) return viewNotFound("/@"+ident, "That is not a valid Minecraft username.");
-      const res = await API.resolveName(ident);
-      if(!res) return viewNotFound("/@"+ident, `No account named \u201c${ident}\u201d.`);
-      uuid = res.id;
-    }
-    prof = await API.profile(uuid);
-    if(!prof) return viewNotFound("/@"+ident, "Profile could not be loaded.");
+    if(!UUID_RE.test(ident) && !NAME_RE.test(ident)) return viewNotFound("/@"+ident, "That is not a valid Minecraft username.");
+    prof = await API.lookup(ident);
+    if(!prof) return viewNotFound("/@"+ident, `No account named \u201c${ident}\u201d.`);
   }catch(err){
     return viewError(err.message);
   }
@@ -426,6 +424,7 @@ function profileSkeleton(){
 }
 
 function renderProfile(prof, laby, ofCape){
+  SKIN_FALLBACK = prof.skin ? {[prof.skin]: craftheadSkin(prof.id)} : {};
   const skins = [];
   if(prof.skin) skins.push({url:prof.skin, slim:prof.slim, cap:"current", cur:true});
   if(laby?.textures?.SKIN){
@@ -529,7 +528,7 @@ function initViewer(prof){
     VIEWER.controls.enableZoom = true;
     VIEWER.controls.enablePan = false;
     VIEWER.animation = new skinview3d.IdleAnimation();
-    if(prof.skin) VIEWER.loadSkin(cors(prof.skin), {model: prof.slim ? "slim" : "default"});
+    if(prof.skin) loadSkinSafe(prof.skin, prof.slim ? "slim" : "default");
     if(prof.cape) VIEWER.loadCape(cors(prof.cape));
     window.addEventListener("resize", resizeViewer);
   }catch(e){
@@ -539,6 +538,14 @@ function initViewer(prof){
 }
 function resizeViewer(){ if(VIEWER){ const c=$("#viewerCanvas"); if(c && c.clientWidth) VIEWER.width=c.clientWidth; } }
 function clearCape(){ if(!VIEWER) return; try{ VIEWER.resetCape(); }catch{ try{ VIEWER.loadCape(null); }catch{} } }
+function loadSkinSafe(url, model){
+  if(!VIEWER || !url) return;
+  const fb = SKIN_FALLBACK[url];
+  try{
+    const p = VIEWER.loadSkin(cors(url), {model});
+    if(fb && p && typeof p.catch==="function") p.catch(()=>{ try{ VIEWER.loadSkin(fb,{model}); }catch{} });
+  }catch{ if(fb){ try{ VIEWER.loadSkin(fb,{model}); }catch{} } }
+}
 
 function bindToolbar(prof, capes){
   const map = {
@@ -566,8 +573,8 @@ function bindToolbar(prof, capes){
 function bindGallery(prof){
   $$("#skinGallery .tex").forEach(t=>{
     const url=t.dataset.skin, slim=t.dataset.slim==="1";
-    t.addEventListener("mouseenter",()=>{ if(VIEWER) VIEWER.loadSkin(cors(url),{model:slim?"slim":"default"}); });
-    t.addEventListener("mouseleave",()=>{ if(VIEWER && prof.skin) VIEWER.loadSkin(cors(prof.skin),{model:prof.slim?"slim":"default"}); });
+    t.addEventListener("mouseenter",()=>{ loadSkinSafe(url, slim?"slim":"default"); });
+    t.addEventListener("mouseleave",()=>{ if(prof.skin) loadSkinSafe(prof.skin, prof.slim?"slim":"default"); });
     t.addEventListener("click",()=>{
       $$("#skinGallery .tex").forEach(x=>x.classList.remove("active")); t.classList.add("active");
       history.pushState({},"", base()+"/@"+encodeURIComponent(prof.name)+"/skin/"+skinKey(url));
@@ -623,7 +630,7 @@ async function openSkin(url, prof){
   host.scrollIntoView({behavior:"smooth"});
   $("#cpLink").addEventListener("click",()=>copyText(location.href));
 
-  const raw = await loadImg(cors(url));
+  const raw = await loadImgAny(skinCandidates(url));
   if(!raw){ $("#variantGrid").innerHTML=`<div class="unavailable">Skin image could not be loaded.</div>`; return; }
   const img = normalizeSkin(raw);
 
@@ -660,6 +667,8 @@ async function openSkin(url, prof){
 }
 
 function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.crossOrigin="anonymous"; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
+async function loadImgAny(urls){ for(const u of urls){ const img=await loadImg(u); if(img) return img; } return null; }
+function skinCandidates(url){ const c=[cors(url)]; if(SKIN_FALLBACK[url]) c.push(SKIN_FALLBACK[url]); return c; }
 function sourceCanvas(img){ const c=document.createElement("canvas"); c.width=img.naturalWidth||64; c.height=img.naturalHeight||64; c.getContext("2d").drawImage(img,0,0); return c; }
 function makeVariant(img, fn){
   const w=img.width||64, h=img.height||64;
@@ -705,7 +714,7 @@ function render2DBody(cv,img){ const ctx=cv.getContext("2d"); ctx.imageSmoothing
 /* -------------------- SHARE CARD -------------------- */
 async function makeShareCard(prof){
   if(!prof.skin){ toast("No skin to render"); return; }
-  const raw = await loadImg(cors(prof.skin)); if(!raw){ toast("Render failed"); return; }
+  const raw = await loadImgAny(skinCandidates(prof.skin)); if(!raw){ toast("Render failed"); return; }
   const img = normalizeSkin(raw);
   const W=800,H=420, c=document.createElement("canvas"); c.width=W;c.height=H; const ctx=c.getContext("2d");
   ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H);
@@ -740,10 +749,8 @@ function cmpCol(k,val){ return `<div class="cmp-col"><input id="cmp_${k}" placeh
 async function loadCmp(k,name){
   if(!name) return; const out=$("#cmpout_"+k); out.innerHTML=`<div class="skeleton" style="height:220px"></div>`;
   try{
-    const res = UUID_RE.test(name)? {id:trimUuid(name)} : await API.resolveName(name);
-    if(!res){ out.innerHTML=`<div class="unavailable">Not found.</div>`; return; }
-    const p=await API.profile(res.id);
-    if(!p){ out.innerHTML=`<div class="unavailable">Profile unavailable.</div>`; return; }
+    const p = await API.lookup(name);
+    if(!p){ out.innerHTML=`<div class="unavailable">Not found.</div>`; return; }
     out.innerHTML=`<h2 style="font-family:var(--disp)">${esc(p.name)} <span class="badge model">${p.slim?"SLIM":"CLASSIC"}</span></h2>
       <div class="idline" style="margin:8px 0"><span class="k">UUID</span><span class="v">${dashUuid(p.id)}</span></div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
@@ -774,7 +781,7 @@ function viewNotFound(path, msg){
 function viewError(m){
   app().innerHTML=`<div class="err"><h2>Something broke</h2>
     <p style="color:var(--dim)"><code>${esc(m)}</code></p>
-    <p style="color:var(--dim2)">If this persists, make sure the WORKER URL in the CONFIG at the top of the script is your deployed Cloudflare Worker.</p>
+    <p style="color:var(--dim2)">If this persists, make sure your Cloudflare Worker is running the latest worker.js (it must allowlist playerdb.co) and that the WORKER URL in CONFIG is correct.</p>
     <a class="chip" data-link href="/">\u2190 Home</a></div>`;
 }
 
@@ -782,7 +789,7 @@ function viewError(m){
 function setFavicon(skinUrl){
   const link=document.getElementById("favicon");
   if(!skinUrl){ link.href=DEFAULT_FAVICON; return; }
-  loadImg(cors(skinUrl)).then(raw=>{
+  loadImgAny(skinCandidates(skinUrl)).then(raw=>{
     if(!raw) return;
     const img=normalizeSkin(raw);
     const c=document.createElement("canvas"); c.width=64;c.height=64;
