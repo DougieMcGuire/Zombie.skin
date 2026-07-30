@@ -271,7 +271,38 @@ const NAME_RE = /^[a-zA-Z0-9_]{1,16}$/;
 const DEFAULT_FAVICON = document.getElementById("favicon").href;
 
 function px(url){ return CONFIG.WORKER.replace(/\/$/,"") + "/?url=" + encodeURIComponent(url); }
-function cors(url){ return url.startsWith("blob:") ? url : px(url); } // for canvas/WebGL loads
+/* Texture loading — browser-direct from CORS-enabled mirrors first (Mojang + laby
+   block image fetches from Cloudflare Workers), the worker only as last resort.
+   Everything becomes a same-origin blob URL, so canvases stay clean. */
+let TEX_SOURCES = {};
+const TEX_CACHE = {};
+const texHash = u => (String(u).match(/([0-9a-f]{16,64})/i)||[])[1] || "";
+function texCandidates(url){
+  if(url.startsWith("blob:")||url.startsWith("data:")) return [url];
+  if(TEX_SOURCES[url]) return TEX_SOURCES[url];
+  if(url.includes("laby.net/texture")){ const h=texHash(url); return h?[`https://api.gapple.pw/cors/laby/image/${h}`, px(url)]:[px(url)]; }
+  return [px(url), url];
+}
+async function fetchTexUrl(url){
+  if(!url) return null;
+  if(url.startsWith("blob:")||url.startsWith("data:")) return url;
+  if(TEX_CACHE[url]) return TEX_CACHE[url];
+  for(const cand of texCandidates(url)){
+    try{
+      const r = await fetch(cand);
+      if(!r.ok) continue;
+      const b = await r.blob();
+      if(b.size<80 || (b.type||"").includes("json") || (b.type||"").includes("html")) continue;
+      const u = URL.createObjectURL(b);
+      TEX_CACHE[url]=u;
+      return u;
+    }catch{}
+  }
+  return null;
+}
+function imgFrom(src){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
+async function loadTexImg(url){ const u=await fetchTexUrl(url); return u?imgFrom(u):null; }
+async function loadCapeSafe(url, opts){ if(!url) return; const u=await fetchTexUrl(url); if(u && VIEWER){ try{ VIEWER.loadCape(u, opts||{}); }catch{} } }
 function dashUuid(id){ const h=id.replace(/-/g,""); return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; }
 function trimUuid(id){ return id.replace(/-/g,""); }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -337,7 +368,6 @@ const API = {
 };
 const mojangTex = h => `https://textures.minecraft.net/texture/${h}`;
 const labyTex  = h => `https://laby.net/texture/image/${h}.png`;
-const craftheadSkin = uuid => `https://crafthead.net/skin/${uuid}`; // CORS-enabled fallback for the current skin
 
 /* -------------------- ROUTER -------------------- */
 function base(){ return CONFIG.BASE.replace(/\/$/,""); }
@@ -410,7 +440,7 @@ function fillMiniRow(sel, names){
 }
 
 /* -------------------- PROFILE -------------------- */
-let VIEWER=null, CURRENT=null, SKIN_FALLBACK={};
+let VIEWER=null, CURRENT=null;
 function destroyViewer(){ if(VIEWER){ try{VIEWER.dispose();}catch{} VIEWER=null; } }
 
 async function viewProfile(ident, skinHashRoute){
@@ -451,7 +481,9 @@ function profileSkeleton(){
 }
 
 function renderProfile(prof, laby, ofCape){
-  SKIN_FALLBACK = prof.skin ? {[prof.skin]: craftheadSkin(prof.id)} : {};
+  TEX_SOURCES = {};
+  if(prof.skin) TEX_SOURCES[prof.skin] = [`https://crafatar.com/skins/${prof.id}`, `https://crafthead.net/skin/${prof.id}`, px(prof.skin)];
+  if(prof.cape) TEX_SOURCES[prof.cape] = [`https://crafatar.com/capes/${prof.id}`, px(prof.cape)];
   const isOwner = CONFIG.OWNER && prof.name && prof.name.toLowerCase()===CONFIG.OWNER.toLowerCase();
   const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
   const skins = [];
@@ -535,7 +567,7 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
-  if(!prof.cape && capes.length && VIEWER){ try{ VIEWER.loadCape(cors(capes[0].url)); }catch{} }
+  if(!prof.cape && capes.length) loadCapeSafe(capes[0].url);
   paintGalleryTiles();
   $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
   $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
@@ -564,7 +596,7 @@ function initViewer(prof){
     VIEWER.controls.enablePan = false;
     VIEWER.animation = new skinview3d.IdleAnimation();
     if(prof.skin) loadSkinSafe(prof.skin, prof.slim ? "slim" : "default");
-    if(prof.cape) VIEWER.loadCape(cors(prof.cape));
+    if(prof.cape) loadCapeSafe(prof.cape);
     const lower=(prof.name||"").toLowerCase();
     if(lower==="dinnerbone"||lower==="grumm"){ try{ VIEWER.playerObject.rotation.z = Math.PI; }catch{} }
     if(lower==="deadmau5") addEars(prof);
@@ -576,13 +608,10 @@ function initViewer(prof){
 }
 function resizeViewer(){ if(VIEWER){ const c=$("#viewerCanvas"); if(c && c.clientWidth) VIEWER.width=c.clientWidth; } }
 function clearCape(){ if(!VIEWER) return; try{ VIEWER.resetCape(); }catch{ try{ VIEWER.loadCape(null); }catch{} } }
-function loadSkinSafe(url, model){
-  if(!VIEWER || !url) return;
-  const fb = SKIN_FALLBACK[url];
-  try{
-    const p = VIEWER.loadSkin(cors(url), {model});
-    if(fb && p && typeof p.catch==="function") p.catch(()=>{ try{ VIEWER.loadSkin(fb,{model}); }catch{} });
-  }catch{ if(fb){ try{ VIEWER.loadSkin(fb,{model}); }catch{} } }
+async function loadSkinSafe(url, model){
+  if(!url) return;
+  const u = await fetchTexUrl(url);
+  if(u && VIEWER){ try{ VIEWER.loadSkin(u, {model}); }catch{} }
 }
 
 function bindToolbar(prof, capes){
@@ -602,8 +631,8 @@ function bindToolbar(prof, capes){
   if(rot) rot.addEventListener("click",()=>{ if(!VIEWER)return; VIEWER.autoRotate=!VIEWER.autoRotate; rot.classList.toggle("on",VIEWER.autoRotate); });
   const el=$("#elytraBtn");
   let elyOn=false;
-  const lastCape = prof.cape ? cors(prof.cape) : (capes[0] ? cors(capes[0].url) : null);
-  if(el) el.addEventListener("click",()=>{ if(!VIEWER||!lastCape)return; elyOn=!elyOn; el.classList.toggle("on",elyOn); VIEWER.loadCape(lastCape,{backEquipment: elyOn?"elytra":"cape"}); });
+  const lastCape = prof.cape || (capes[0] ? capes[0].url : null);
+  if(el) el.addEventListener("click",()=>{ if(!VIEWER||!lastCape)return; elyOn=!elyOn; el.classList.toggle("on",elyOn); loadCapeSafe(lastCape,{backEquipment: elyOn?"elytra":"cape"}); });
   const card=$("#cardBtn");
   if(card) card.addEventListener("click",()=>makeShareCard(prof));
 }
@@ -621,8 +650,8 @@ function bindGallery(prof){
   });
   $$("#capeGallery .tex").forEach(t=>{
     const url=t.dataset.cape;
-    t.addEventListener("mouseenter",()=>{ if(VIEWER) VIEWER.loadCape(cors(url)); });
-    t.addEventListener("mouseleave",()=>{ if(!VIEWER) return; if(prof.cape) VIEWER.loadCape(cors(prof.cape)); else clearCape(); });
+    t.addEventListener("mouseenter",()=>{ loadCapeSafe(url); });
+    t.addEventListener("mouseleave",()=>{ if(!VIEWER) return; if(prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
   });
 }
 function skinKey(url){ const m=url.match(/([0-9a-f]{30,64})/i); return m?m[1]:encodeURIComponent(url); }
@@ -668,7 +697,7 @@ async function openSkin(url, prof){
   host.scrollIntoView({behavior:"smooth"});
   $("#cpLink").addEventListener("click",()=>copyText(location.href));
 
-  const raw = await loadImgAny(skinCandidates(url));
+  const raw = await loadTexImg(url);
   if(!raw){ $("#variantGrid").innerHTML=`<div class="unavailable">Skin image could not be loaded.</div>`; return; }
   const img = normalizeSkin(raw);
 
@@ -704,9 +733,6 @@ async function openSkin(url, prof){
   });
 }
 
-function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.crossOrigin="anonymous"; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
-async function loadImgAny(urls){ for(const u of urls){ const img=await loadImg(u); if(img) return img; } return null; }
-function skinCandidates(url){ const c=[cors(url)]; if(SKIN_FALLBACK[url]) c.push(SKIN_FALLBACK[url]); return c; }
 function sourceCanvas(img){ const c=document.createElement("canvas"); c.width=img.naturalWidth||64; c.height=img.naturalHeight||64; c.getContext("2d").drawImage(img,0,0); return c; }
 function makeVariant(img, fn){
   const w=img.width||64, h=img.height||64;
@@ -763,7 +789,7 @@ function drawCapeFront(cv,img){
 function paintGalleryTiles(){
   $$("canvas.texcv").forEach(cv=>{
     const url=cv.dataset.tex, kind=cv.dataset.kind;
-    loadImgAny(url.startsWith("blob:")?[url]:[cors(url)]).then(img=>{
+    loadTexImg(url).then(img=>{
       if(!img){
         const ctx=cv.getContext("2d");
         ctx.fillStyle="#141a14"; ctx.fillRect(0,0,cv.width,cv.height);
@@ -778,7 +804,7 @@ function paintGalleryTiles(){
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
   try{
     if(!prof.skin || !VIEWER) return;
-    const raw=await loadImgAny(skinCandidates(prof.skin)); if(!raw||!VIEWER) return;
+    const raw=await loadTexImg(prof.skin); if(!raw||!VIEWER) return;
     const n=normalizeSkin(raw);
     const p1=n.getContext("2d").getImageData(11,3,1,1).data;
     const e=document.createElement("canvas"); e.width=14; e.height=7;
@@ -792,7 +818,7 @@ async function addEars(prof){ // deadmau5 easter egg — ears synthesized from t
 /* -------------------- SHARE CARD -------------------- */
 async function makeShareCard(prof){
   if(!prof.skin){ toast("No skin to render"); return; }
-  const raw = await loadImgAny(skinCandidates(prof.skin)); if(!raw){ toast("Render failed"); return; }
+  const raw = await loadTexImg(prof.skin); if(!raw){ toast("Render failed"); return; }
   const img = normalizeSkin(raw);
   const W=800,H=420, c=document.createElement("canvas"); c.width=W;c.height=H; const ctx=c.getContext("2d");
   ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H);
@@ -878,7 +904,7 @@ function viewLab(){
       VIEWER.animation=new skinview3d.WalkingAnimation();
       VIEWER.loadSkin(blobUrl,{model});
     }catch(e){ console.error(e); }
-    SKIN_FALLBACK={};
+    TEX_SOURCES={};
     openSkin(blobUrl, {name:(file.name||"myskin").replace(/\.png$/i,"")});
   };
   const remodel=(m)=>{ model=m; $("#labClassic").classList.toggle("on",m==="default"); $("#labSlim").classList.toggle("on",m==="slim"); if(VIEWER&&blobUrl) VIEWER.loadSkin(blobUrl,{model:m}); };
@@ -917,7 +943,7 @@ function viewError(m){
 function setFavicon(skinUrl){
   const link=document.getElementById("favicon");
   if(!skinUrl){ link.href=DEFAULT_FAVICON; return; }
-  loadImgAny(skinCandidates(skinUrl)).then(raw=>{
+  loadTexImg(skinUrl).then(raw=>{
     if(!raw) return;
     const img=normalizeSkin(raw);
     const c=document.createElement("canvas"); c.width=64;c.height=64;
