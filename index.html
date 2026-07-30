@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v24 \u00b7 dates+classify";
+const BUILD = "v25 \u00b7 labeled";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -756,7 +756,7 @@ function renderProfile(prof, history_in, ofCape){
     else if(capes.length) loadCapeSafe(capes[0].url);
   }
   paintGalleryTiles();
-  loadHistory(prof, capes.length);
+  loadHistory(prof);
   $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
   $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
   bindGallery(prof);
@@ -994,46 +994,31 @@ function paintGalleryTiles(){
 // Pull raw responses from every known history source, harvest 64-hex Mojang
 // texture hashes, then load each from Mojang's CDN and classify by the image
 // itself: 64x64 = skin, 2:1 mostly-empty-right = cape, 2:1 full = legacy skin.
-function rightHalfEmpty(img){
+// Opaque-pixel ratio of a region given in 64-wide sheet coordinates.
+function regionOpaque(img, rx, ry, rw, rh){
   try{
     const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    const s=W/64;
+    const X=Math.floor(rx*s), Y=Math.floor(ry*s);
+    const Wd=Math.max(1,Math.floor(rw*s)), Ht=Math.max(1,Math.floor(rh*s));
+    if(X+Wd>W || Y+Ht>H) return 0;
     const c=document.createElement("canvas"); c.width=W; c.height=H;
     const x=c.getContext("2d"); x.drawImage(img,0,0);
-    const half=Math.floor(W/2);
-    const d=x.getImageData(half,0,W-half,H).data;
+    const d=x.getImageData(X,Y,Wd,Ht).data;
     let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>10) n++;
-    return n < (d.length/4)*0.02;
-  }catch{ return true; }
+    return n/(d.length/4);
+  }catch{ return 0; }
 }
-// Bounding box of opaque pixels, normalized to a 64-wide sheet.
-function contentBBox(img){
-  try{
-    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
-    const c=document.createElement("canvas"); c.width=W; c.height=H;
-    const x=c.getContext("2d"); x.drawImage(img,0,0);
-    const d=x.getImageData(0,0,W,H).data;
-    let x1=0,y1=0,any=false;
-    for(let py=0;py<H;py++){ for(let pxi=0;pxi<W;pxi++){
-      if(d[(py*W+pxi)*4+3]>10){ any=true; if(pxi>x1)x1=pxi; if(py>y1)y1=py; }
-    }}
-    if(!any) return null;
-    const s=64/W;
-    return {x1:x1*s, y1:y1*(64/W)};
-  }catch{ return null; }
-}
-// Decide skin vs cape from the image itself.
+// Skin vs cape, decided by geometry that holds for every sheet size:
+// the right-arm patch at (44,20) is opaque on every skin and empty on every cape.
 function classifyTexture(img){
   const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
   if(!W||!H) return null;
   const r=W/H;
-  if(Math.abs(r-2)<0.3) return rightHalfEmpty(img) ? "cape" : "skin"; // 2:1 sheet
-  if(Math.abs(r-1)<0.05){                                            // square sheet
-    const bb=contentBBox(img);
-    // a cape padded into a square canvas keeps its art in the top-left corner
-    if(bb && bb.x1<=26 && bb.y1<=20) return "cape";
-    return "skin";
-  }
-  return null;
+  if(Math.abs(r-1)>0.05 && Math.abs(r-2)>0.35) return null; // not a skin/cape sheet
+  const arm  = regionOpaque(img, 44,20, 4,12);
+  const head = regionOpaque(img, 8,8, 8,8);
+  return (arm>0.5 && head>0.5) ? "skin" : "cape";
 }
 // Pair each texture hash with a nearby date from the raw source text.
 function harvestDates(texts){
@@ -1073,37 +1058,52 @@ function addHistTile(kind, key, img, prof, caption){
     d.addEventListener("mouseleave",()=>{ if(prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
   }
 }
-async function loadHistory(prof, hadCapes){
-  const uname=encodeURIComponent(prof.name);
-  const grab = async (url, direct) => { try{ const r=await fetch(direct?url:px(url)); return r.ok ? await r.text() : ""; }catch{ return ""; } };
-  const texts = await Promise.all([
-    grab(`https://api.crafty.gg/api/v2/players/${uname}`, true),   // browser-direct (if CORS-enabled)
-    grab(`https://api.crafty.gg/api/v2/players/${uname}`, false),  // via worker
-    grab(`https://crafty.gg/@${uname}`, false),                    // profile page scrape
-    grab(`https://laby.net/api/v2/user/${dashUuid(prof.id)}/get-profile`, false),
-    grab(`https://laby.net/api/v3/user/${dashUuid(prof.id)}/profile`, false),
-    grab(`https://capes.me/api/${uname}`, false),
-    grab(`https://capes.me/${uname}`, false),
+async function loadHistory(prof){
+  const uname=encodeURIComponent(prof.name), uuid=dashUuid(prof.id);
+  const get = async (u)=>{ try{ const r=await fetch(px(u)); return r.ok ? await r.text() : ""; }catch{ return ""; } };
+  const [cApi,cPage,cSkins,cCapes,labyJ,capeA,capeB] = await Promise.all([
+    get(`https://api.crafty.gg/api/v2/players/${uname}`),
+    get(`https://crafty.gg/@${uname}`),
+    get(`https://crafty.gg/skins?search=${uname}`),   // "View All" — the complete skin list
+    get(`https://crafty.gg/capes?search=${uname}`),
+    get(`https://laby.net/api/v2/user/${uuid}/get-profile`),
+    get(`https://capes.me/api/${uname}`),
+    get(`https://capes.me/${uname}`),
   ]);
-  const found = new Set();
-  (texts.join(" ").match(/[0-9a-f]{64}/gi)||[]).forEach(h=>found.add(h.toLowerCase()));
-  if(prof.skinId) found.delete(prof.skinId.toLowerCase());
-  if(prof.capeId) found.delete(prof.capeId.toLowerCase());
-  const dates = harvestDates(texts);
-  let hashes=[...found];
-  hashes.sort((a,b)=>{ const da=dates[a], db=dates[b];
-    if(da&&db) return String(db).localeCompare(String(da));
-    if(da) return -1; if(db) return 1; return 0; });
-  hashes=hashes.slice(0,48);
-  console.info("[zombie.skin] history:", hashes.length, "hashes,", Object.keys(dates).length, "dated");
-  hashes.forEach(async h=>{
+  const all=[cApi,cPage,cSkins,cCapes,labyJ,capeA,capeB];
+  const dates=harvestDates(all);
+  const cur=[(prof.skinId||"").toLowerCase(),(prof.capeId||"").toLowerCase()];
+  const skinSet=new Set(), capeSet=new Set(), unknown=new Set();
+  const put=(set,h)=>{ if(!h) return; h=h.toLowerCase(); if(!cur.includes(h)) set.add(h); };
+
+  // 1) Sources that LABEL their textures — trust them over any heuristic.
+  [cPage,cSkins,cApi].forEach(t=>{ let m,re=/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi;
+    while((m=re.exec(t))) put(skinSet,m[1]); });                       // crafty skin renders
+  [cCapes,capeA,capeB].forEach(t=>{ (t.match(/[0-9a-f]{64}/gi)||[]).forEach(h=>put(capeSet,h)); });
+  try{ const j=JSON.parse(labyJ);                                      // laby labeled arrays
+    (j?.textures?.SKIN||[]).forEach(x=>{ if(/^[0-9a-f]{64}$/i.test(x.file_hash||"")) put(skinSet,x.file_hash); });
+    (j?.textures?.CAPE||[]).forEach(x=>{ if(/^[0-9a-f]{64}$/i.test(x.file_hash||"")) put(capeSet,x.file_hash); });
+  }catch{}
+  // 2) Everything else found anywhere → classify from pixels.
+  all.forEach(t=>{ (t.match(/[0-9a-f]{64}/gi)||[]).forEach(h=>{ h=h.toLowerCase();
+    if(!skinSet.has(h)&&!capeSet.has(h)) put(unknown,h); }); });
+
+  console.info("[zombie.skin] history:", skinSet.size,"skins,",capeSet.size,"capes,",unknown.size,"unlabeled,",Object.keys(dates).length,"dated");
+
+  const byDate=a=>[...a].sort((x,y)=>{ const dx=dates[x],dy=dates[y];
+    if(dx&&dy) return String(dy).localeCompare(String(dx)); if(dx) return -1; if(dy) return 1; return 0; });
+  const render = async (h, forced) => {
     const key=`hist:${h}`;
     TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${h}`), `${VRC}/cape?hash=${h}` ];
     const img=await loadTexImg(key);
-    if(!img) return; // hash doesn't resolve to a real texture — junk, skip silently
-    const kind=classifyTexture(img);
+    if(!img) return;                       // not a real texture — junk hash, skip
+    const seen=classifyTexture(img);       // pixels always get the final say
+    const kind=seen||forced;
     if(kind) addHistTile(kind, key, img, prof, fmtHistDate(dates[h]));
-  });
+  };
+  byDate(skinSet).slice(0,80).forEach(h=>render(h,"skin"));
+  byDate(capeSet).slice(0,60).forEach(h=>render(h,"cape"));
+  byDate(unknown).slice(0,60).forEach(h=>render(h,null));
 }
 
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
