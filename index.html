@@ -190,6 +190,33 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 @media(max-width:760px){.compare{grid-template-columns:1fr}}
 .cmp-col{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:16px}
 .cmp-col input{width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--txt);font-family:var(--mono);padding:10px;border-radius:8px;margin-bottom:12px}
+/* --- landing: the dig site --- */
+.dig{padding:54px 0 10px;max-width:880px}
+.dig-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.34em;color:var(--acc-dim);margin-bottom:18px}
+.dig h1{font-family:var(--disp);font-weight:700;font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.025em;margin:0 0 26px}
+.dig h1 em{font-style:normal;color:var(--acc)}
+.dig .big-search{margin:0;max-width:560px}
+.dig-meta{font-family:var(--mono);font-size:12px;color:var(--dim2);margin-top:16px}
+.dig-meta a{color:var(--acc)}
+.face-wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:12px}
+.fw-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;border:1px solid var(--line);border-radius:10px;padding:12px 6px 9px;background:var(--panel);transition:.15s}
+.fw-tile:hover{border-color:var(--acc);transform:translateY(-3px)}
+.fw-tile img{width:52px;height:52px;border-radius:5px}
+.fw-tile img.dead{visibility:hidden}
+.fw-tile span{font-family:var(--mono);font-size:11px;color:var(--dim);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fw-tile.fav::after{content:'\2605';position:absolute;top:5px;right:7px;font-size:10px;color:#ffd84d}
+.quick-rows{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+/* --- owner gold --- */
+.viewer-card.owner{border-color:#ffd84d;box-shadow:0 0 0 1px rgba(255,216,77,.3),0 0 40px rgba(255,216,77,.08)}
+.badge.ownerb{color:#ffd84d;border-color:#8f7325;background:rgba(255,216,77,.07)}
+/* --- gallery canvas tiles --- */
+.tex canvas{width:100%;height:64px;image-rendering:pixelated}
+/* --- skin lab --- */
+.lab-drop{display:block;border:2px dashed var(--line2);border-radius:var(--r);padding:56px 24px;text-align:center;color:var(--dim);cursor:pointer;transition:.18s;background:var(--panel);font-size:15px}
+.lab-drop:hover,.lab-drop.over{border-color:var(--acc);color:var(--acc)}
+.lab-drop input{display:none}
+.lab-top{display:grid;grid-template-columns:380px 1fr;gap:26px;align-items:start}
+@media(max-width:900px){.lab-top{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -206,6 +233,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
     </div>
   </form>
   <nav class="topnav">
+    <a href="/lab" data-link>Skin Lab</a>
     <a href="/compare" data-link>Compare</a>
     <a href="/random" data-link>Random</a>
   </nav>
@@ -224,12 +252,14 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
-  // 1) Paste your deployed Cloudflare Worker URL here (no trailing slash):
-  WORKER: "https://zombie.dtm2210.workers.dev/",
+  // 1) Your deployed Cloudflare Worker URL (already set to yours):
+  WORKER: "https://zombie.dtm2210.workers.dev",
   // 2) "" for a custom domain (zombie.skin) or user.github.io root;
   //    "/REPO" if hosted at user.github.io/REPO (also set pathSegmentsToKeep=1 in 404.html)
   BASE: "",
-  FEATURED: ["Notch","jeb_","Dinnerbone","Grumm","Technoblade","CaptainSparklez","Ph1LzA","GeorgeNotFound","Dream","Skeppy"]
+  FEATURED: ["dcug","Notch","jeb_","Dinnerbone","Grumm","deadmau5","Technoblade","CaptainSparklez","Ph1LzA","GeorgeNotFound","Dream","Skeppy"],
+  // The site owner's IGN — gets the gold OWNER treatment on their profile.
+  OWNER: "dcug"
 };
 
 /* -------------------- tiny utils -------------------- */
@@ -332,6 +362,7 @@ function route(){
   if(seg.length===0) return viewHome();
   if(seg[0]==="compare") return viewCompare();
   if(seg[0]==="random")  return viewRandom();
+  if(seg[0]==="lab")     return viewLab();
   if(seg[0][0]==="@"){
     const ident = decodeURIComponent(seg[0].slice(1));
     if(seg[1]==="skin" && seg[2]) return viewProfile(ident, seg[2]);
@@ -346,35 +377,31 @@ function viewHome(){
   setFavicon(null);
   document.title = "Zombie.skin — Minecraft profile lookup";
   const recent = Store.recent(), favs = Store.favs();
+  const wall = [...new Set([...favs, ...recent, ...CONFIG.FEATURED])].slice(0,18);
   app().innerHTML = `
-  <section class="hero">
-    <h1>Dig up any<br><em>Minecraft</em> player.</h1>
-    <p>3D skins you can spin, capes, UUIDs, full name history and downloadable skin variants — all on one fast, pitch-black page.</p>
+  <section class="dig">
+    <div class="dig-eyebrow">MINECRAFT PLAYER DATABASE</div>
+    <h1>Every player,<br><em>dug up.</em></h1>
     <form class="big-search" id="homeSearch">
       <div class="search-wrap">
-        <input id="homeInput" type="text" placeholder="Enter a username or UUID…" spellcheck="false" autofocus>
-        <button type="submit">→</button>
+        <input id="homeInput" type="text" placeholder="username or UUID\u2026" spellcheck="false" autofocus>
+        <button type="submit">\u2192</button>
       </div>
     </form>
-    <div class="chips">${CONFIG.FEATURED.map(n=>`<span class="chip" tabindex="0" data-name="${esc(n)}">${esc(n)}</span>`).join("")}</div>
+    <div class="dig-meta">3D viewer \u00b7 skin lab \u00b7 capes \u00b7 name history \u2014 or start with <a data-link href="/@${esc(CONFIG.OWNER)}">/@${esc(CONFIG.OWNER)}</a></div>
   </section>
 
-  ${favs.length?`<div class="section-title">★ Favorites</div><div class="mini-row" id="favRow"></div>`:""}
-  ${recent.length?`<div class="section-title">Recent digs</div><div class="mini-row" id="recentRow"></div>`:""}
+  <div class="section-title">The wall${favs.length?" \u00b7 \u2605 = your favorites":""}</div>
+  <div class="face-wall">
+    ${wall.map(n=>`<a class="fw-tile${Store.isFav(n)?" fav":""}" data-link href="/@${esc(n)}"><img loading="lazy" alt="" src="https://mc-heads.net/avatar/${encodeURIComponent(n)}/64" onerror="this.classList.add('dead')"><span>${esc(n)}</span></a>`).join("")}
+  </div>
 
-  <div class="home-grid">
-    <div class="feat-card"><h3>3D viewer</h3><p>Drag to orbit, scroll to zoom, toggle walk / run / fly. Hover a skin or cape to try it on live.</p></div>
-    <div class="feat-card"><h3>Skin lab</h3><p>Download the raw PNG plus auto-generated inverted, grayscale, sepia and hue-shifted variants.</p></div>
-    <div class="feat-card"><h3>Deep links</h3><p>Every profile lives at <code style="color:var(--acc)">/@username</code> — shareable and bookmarkable.</p></div>
-    <div class="feat-card"><h3>Everything</h3><p>UUID (dashed &amp; trimmed), model type, capes incl. OptiFine, and full name history.</p></div>
+  <div class="quick-rows">
+    <a class="chip" data-link href="/lab">Open the Skin Lab \u2192</a>
+    <a class="chip" data-link href="/compare">Compare two players</a>
+    <a class="chip" data-link href="/random">Random dig</a>
   </div>`;
   $("#homeSearch").addEventListener("submit",e=>{ e.preventDefault(); const v=$("#homeInput").value.trim(); if(v) go("/@"+encodeURIComponent(v)); });
-  $$(".chip").forEach(c=>{
-    c.addEventListener("click",()=>go("/@"+encodeURIComponent(c.dataset.name)));
-    c.addEventListener("keydown",e=>{ if(e.key==="Enter") go("/@"+encodeURIComponent(c.dataset.name)); });
-  });
-  if(favs.length) fillMiniRow("#favRow", favs);
-  if(recent.length) fillMiniRow("#recentRow", recent);
 }
 function fillMiniRow(sel, names){
   const row=$(sel); if(!row) return;
@@ -393,7 +420,7 @@ async function viewProfile(ident, skinHashRoute){
   try{
     if(!UUID_RE.test(ident) && !NAME_RE.test(ident)) return viewNotFound("/@"+ident, "That is not a valid Minecraft username.");
     prof = await API.lookup(ident);
-    if(!prof) return viewNotFound("/@"+ident, `No account named \u201c${ident}\u201d.`);
+    if(!prof) return viewNotFound("/@"+ident, `No account named \u201c${ident}\u201d \u2014 it might be unclaimed, or check the spelling.`);
   }catch(err){
     return viewError(err.message);
   }
@@ -425,11 +452,14 @@ function profileSkeleton(){
 
 function renderProfile(prof, laby, ofCape){
   SKIN_FALLBACK = prof.skin ? {[prof.skin]: craftheadSkin(prof.id)} : {};
+  const isOwner = CONFIG.OWNER && prof.name && prof.name.toLowerCase()===CONFIG.OWNER.toLowerCase();
+  const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
   const skins = [];
   if(prof.skin) skins.push({url:prof.skin, slim:prof.slim, cap:"current", cur:true});
   if(laby?.textures?.SKIN){
     laby.textures.SKIN.forEach(s=>{
       if(!s.image_hash) return;
+      if(s.active && prof.skin) return;
       if(prof.skin && prof.skin.includes(s.image_hash)) return;
       if(skins.some(x=>x.hash===s.image_hash)) return;
       skins.push({url:labyTex(s.image_hash), hash:s.image_hash, slim:!!s.slim_skin, cap:fmtDate(s.first_seen_at), cur:!!s.active});
@@ -440,6 +470,7 @@ function renderProfile(prof, laby, ofCape){
   if(laby?.textures?.CAPE){
     laby.textures.CAPE.forEach(c=>{
       if(!c.image_hash) return;
+      if(c.active && prof.cape) return;
       if(prof.cape && prof.cape.includes(c.image_hash)) return;
       if(capes.some(x=>x.hash===c.image_hash)) return;
       capes.push({url:labyTex(c.image_hash), hash:c.image_hash, cap:c.active?"active":fmtDate(c.first_seen_at), cur:!!c.active});
@@ -452,7 +483,7 @@ function renderProfile(prof, laby, ofCape){
 
   app().innerHTML = `
   <div class="profile">
-    <div class="viewer-card">
+    <div class="viewer-card${isOwner?" owner":""}">
       <canvas id="viewerCanvas"></canvas>
       <div class="viewer-toolbar">
         <button class="vbtn on" data-anim="idle">Idle</button>
@@ -462,12 +493,13 @@ function renderProfile(prof, laby, ofCape){
         <button class="vbtn" data-anim="none">Pause</button>
         <button class="vbtn" id="rotBtn">Auto-rotate</button>
         ${capes.length?`<button class="vbtn" id="elytraBtn">Elytra</button>`:""}
-        <button class="vbtn" id="cardBtn">Share card ↧</button>
+        <button class="vbtn" id="cardBtn">Share card ↓</button>
       </div>
     </div>
     <div class="pinfo">
       <h2>${esc(prof.name)}
         <span class="badge model">${prof.slim?"SLIM / Alex":"CLASSIC / Steve"}</span>
+        ${isOwner?`<span class="badge ownerb">OWNER</span>`:""}
         ${prof.legacy?`<span class="badge">LEGACY</span>`:""}
         <span class="badge fav ${favOn?"on":""}" id="favBadge" tabindex="0">${favOn?"★ Favorited":"☆ Favorite"}</span>
       </h2>
@@ -476,13 +508,14 @@ function renderProfile(prof, laby, ofCape){
         <div class="idline"><span class="k">UUID</span><span class="v">${dashUuid(prof.id)}</span><button class="copy" data-c="${dashUuid(prof.id)}">copy</button></div>
         <div class="idline"><span class="k">Trimmed</span><span class="v">${trimUuid(prof.id)}</span><button class="copy" data-c="${trimUuid(prof.id)}">copy</button></div>
         <div class="idline"><span class="k">Share</span><span class="v">${location.origin}${base()}/@${esc(prof.name)}</span><button class="copy" data-c="${location.origin}${base()}/@${esc(prof.name)}">copy</button></div>
+        <div class="idline"><span class="k">Head cmd</span><span class="v">${esc(headCmd)}</span><button class="copy" data-c="${esc(headCmd)}">copy</button></div>
       </div>
 
       <div class="section-title">Skins <span style="color:var(--dim2)">(hover = try on · click = open)</span></div>
       <div class="gallery" id="skinGallery">
         ${skins.length? skins.map((s,i)=>`<div class="tex ${i===0?"active":""}" data-skin="${esc(s.url)}" data-slim="${s.slim?1:0}">
             ${s.cur?`<span class="flag">●</span>`:""}
-            <img loading="lazy" alt="skin" src="${esc(s.url)}">
+            <canvas class="texcv" width="64" height="64" data-tex="${esc(s.url)}" data-kind="skin"></canvas>
             <span class="cap">${esc(s.cap)}</span></div>`).join("")
           : `<div class="unavailable">No skins found.</div>`}
       </div>
@@ -491,7 +524,7 @@ function renderProfile(prof, laby, ofCape){
       <div class="gallery" id="capeGallery">
         ${capes.length? capes.map(c=>`<div class="tex" data-cape="${esc(c.url)}">
             ${c.cur?`<span class="flag">●</span>`:""}
-            <img loading="lazy" alt="cape" src="${esc(c.url)}">
+            <canvas class="texcv" width="64" height="64" data-tex="${esc(c.url)}" data-kind="cape"></canvas>
             <span class="cap">${esc(c.cap)}</span></div>`).join("")
           : `<div class="unavailable">No capes on this account.</div>`}
       </div>
@@ -502,6 +535,8 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
+  if(!prof.cape && capes.length && VIEWER){ try{ VIEWER.loadCape(cors(capes[0].url)); }catch{} }
+  paintGalleryTiles();
   $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
   $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
   bindGallery(prof);
@@ -530,6 +565,9 @@ function initViewer(prof){
     VIEWER.animation = new skinview3d.IdleAnimation();
     if(prof.skin) loadSkinSafe(prof.skin, prof.slim ? "slim" : "default");
     if(prof.cape) VIEWER.loadCape(cors(prof.cape));
+    const lower=(prof.name||"").toLowerCase();
+    if(lower==="dinnerbone"||lower==="grumm"){ try{ VIEWER.playerObject.rotation.z = Math.PI; }catch{} }
+    if(lower==="deadmau5") addEars(prof);
     window.addEventListener("resize", resizeViewer);
   }catch(e){
     console.error(e);
@@ -660,7 +698,7 @@ async function openSkin(url, prof){
     const out=makeVariant(img, fn);
     drawScaled(cv, out);
     const label=document.createElement("div"); label.className="vn"; label.textContent=name;
-    const btn=document.createElement("button"); btn.className="dl"; btn.textContent="↧ PNG";
+    const btn=document.createElement("button"); btn.className="dl"; btn.textContent="↓ PNG";
     btn.addEventListener("click",()=>downloadCanvas(out, (prof?.name||"skin")+"_"+name.replace(/[^a-z0-9]+/gi,"_")+".png"));
     wrap.append(cv,label,btn); grid.appendChild(wrap);
   });
@@ -709,6 +747,46 @@ function render2DBody(cv,img){ const ctx=cv.getContext("2d"); ctx.imageSmoothing
   part(ctx,img,36,52,4,12,12*u,8*u,4*u,12*u); part(ctx,img,52,52,4,12,12*u,8*u,4*u,12*u); // left arm + sleeve
   part(ctx,img,4,20,4,12,4*u,20*u,4*u,12*u);  part(ctx,img,4,36,4,12,4*u,20*u,4*u,12*u); // right leg + pants
   part(ctx,img,20,52,4,12,8*u,20*u,4*u,12*u); part(ctx,img,4,52,4,12,8*u,20*u,4*u,12*u); // left leg + pants
+}
+
+/* -------------------- GALLERY TILE PAINTING -------------------- */
+function drawCapeFront(cv,img){
+  const ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=false;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  try{
+    const ratio=img.width/img.height;
+    const b=Math.abs(ratio-2)<0.05?64:46;              // vanilla 64x32 grid vs OptiFine-style
+    const s=img.width/b;
+    ctx.drawImage(img, 1*s,1*s,10*s,16*s, 12,0,40,64); // front face of the cape
+  }catch{ ctx.drawImage(img,0,0,cv.width,cv.height); }
+}
+function paintGalleryTiles(){
+  $$("canvas.texcv").forEach(cv=>{
+    const url=cv.dataset.tex, kind=cv.dataset.kind;
+    loadImgAny(url.startsWith("blob:")?[url]:[cors(url)]).then(img=>{
+      if(!img){
+        const ctx=cv.getContext("2d");
+        ctx.fillStyle="#141a14"; ctx.fillRect(0,0,cv.width,cv.height);
+        ctx.fillStyle="#59635a"; ctx.font="10px monospace"; ctx.fillText("n/a",22,36);
+        return;
+      }
+      if(kind==="skin") render2DFace(cv, normalizeSkin(img));
+      else drawCapeFront(cv,img);
+    });
+  });
+}
+async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
+  try{
+    if(!prof.skin || !VIEWER) return;
+    const raw=await loadImgAny(skinCandidates(prof.skin)); if(!raw||!VIEWER) return;
+    const n=normalizeSkin(raw);
+    const p1=n.getContext("2d").getImageData(11,3,1,1).data;
+    const e=document.createElement("canvas"); e.width=14; e.height=7;
+    const c=e.getContext("2d");
+    c.fillStyle=`rgb(${p1[0]},${p1[1]},${p1[2]})`; c.fillRect(0,0,14,7);
+    c.fillStyle="rgba(0,0,0,.3)"; c.fillRect(1,1,5,5); c.fillRect(8,1,5,5);
+    VIEWER.loadEars(e.toDataURL(), {textureType:"standalone"});
+  }catch{}
 }
 
 /* -------------------- SHARE CARD -------------------- */
@@ -763,6 +841,56 @@ async function loadCmp(k,name){
 
 /* -------------------- RANDOM -------------------- */
 function viewRandom(){ const n=CONFIG.FEATURED[Math.floor(Math.random()*CONFIG.FEATURED.length)]; go("/@"+encodeURIComponent(n)); }
+
+/* -------------------- SKIN LAB (bring your own skin) -------------------- */
+function viewLab(){
+  setFavicon(null);
+  document.title = "Skin Lab \u2014 Zombie.skin";
+  app().innerHTML = `
+  <div class="section-title" style="margin-top:0">Skin lab \u2014 bring your own skin</div>
+  <label class="lab-drop" id="labDrop">Drop a skin PNG here, or click to browse
+    <br><span style="font-family:var(--mono);font-size:11px;color:var(--dim2)">64\u00d764 or legacy 64\u00d732 \u00b7 nothing gets uploaded \u2014 it all runs in your browser</span>
+    <input type="file" id="labFile" accept="image/png">
+  </label>
+  <div id="labStage" style="display:none;margin-top:22px;max-width:380px">
+    <div class="viewer-card">
+      <canvas id="viewerCanvas"></canvas>
+      <div class="viewer-toolbar">
+        <button class="vbtn on" id="labClassic">Classic</button>
+        <button class="vbtn" id="labSlim">Slim</button>
+        <button class="vbtn on" id="labWalk">Walk</button>
+        <button class="vbtn" id="labRot">Auto-rotate</button>
+      </div>
+    </div>
+  </div>`;
+  let blobUrl=null, model="default";
+  const drop=$("#labDrop"), fileIn=$("#labFile");
+  const start=(file)=>{
+    if(!file || !/png$/i.test(file.type||file.name||"")){ toast("PNG files only"); return; }
+    if(blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(file);
+    $("#labStage").style.display="";
+    destroyViewer();
+    const canvas=$("#viewerCanvas");
+    try{
+      VIEWER=new skinview3d.SkinViewer({canvas,width:canvas.clientWidth||380,height:480});
+      VIEWER.fov=55; VIEWER.zoom=0.9; VIEWER.controls.enablePan=false;
+      VIEWER.animation=new skinview3d.WalkingAnimation();
+      VIEWER.loadSkin(blobUrl,{model});
+    }catch(e){ console.error(e); }
+    SKIN_FALLBACK={};
+    openSkin(blobUrl, {name:(file.name||"myskin").replace(/\.png$/i,"")});
+  };
+  const remodel=(m)=>{ model=m; $("#labClassic").classList.toggle("on",m==="default"); $("#labSlim").classList.toggle("on",m==="slim"); if(VIEWER&&blobUrl) VIEWER.loadSkin(blobUrl,{model:m}); };
+  $("#labClassic").addEventListener("click",()=>remodel("default"));
+  $("#labSlim").addEventListener("click",()=>remodel("slim"));
+  $("#labWalk").addEventListener("click",e=>{ if(!VIEWER)return; const on=e.target.classList.toggle("on"); VIEWER.animation=on?new skinview3d.WalkingAnimation():null; });
+  $("#labRot").addEventListener("click",e=>{ if(!VIEWER)return; VIEWER.autoRotate=!VIEWER.autoRotate; e.target.classList.toggle("on",VIEWER.autoRotate); });
+  fileIn.addEventListener("change",()=>start(fileIn.files[0]));
+  ["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop",e=>{ const f=e.dataTransfer?.files?.[0]; if(f) start(f); });
+}
 
 /* -------------------- ERROR / 404 -------------------- */
 function viewNotFound(path, msg){
