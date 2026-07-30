@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v19 \u00b7 cape-cdn";
+const BUILD = "v20 \u00b7 all-history";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -500,17 +500,21 @@ const API = {
       const capeArr = d.capes || d.capeHistory || d.cape_history || (d.textures&&d.textures.capes) || [];
       let skins = collect(skinArr);
       let capes = collect(capeArr);
-      // Fallback: scrape the server-rendered profile page (worker-reachable) for hashes.
-      if(!skins.length || !capes.length){
-        try{
-          const hr = await fetch(px(`https://crafty.gg/@${encodeURIComponent(ident)}`));
-          if(hr.ok){
-            const html = await hr.text();
-            if(!skins.length) skins = [...html.matchAll(/render\.crafty\.gg\/3d\/full\/([0-9a-f]{64})/gi)].map(m=>({hash:m[1].toLowerCase(),at:null}));
-            if(!capes.length) capes = [...html.matchAll(/\/capes\/([0-9a-f]{64})/gi)].map(m=>({hash:m[1].toLowerCase(),at:null}));
-          }
-        }catch{}
-      }
+      // ALWAYS also scrape the server-rendered profile page and union the results,
+      // so every skin/cape crafty knows shows up even if the API caps or renames fields.
+      try{
+        const hr = await fetch(px(`https://crafty.gg/@${encodeURIComponent(ident)}`));
+        if(hr.ok){
+          const html = await hr.text();
+          const pageSkins = [...html.matchAll(/render\.crafty\.gg\/3d\/full\/([0-9a-f]{64})/gi)].map(m=>({hash:m[1].toLowerCase(),at:null}));
+          const pageCapes = [
+            ...[...html.matchAll(/\/capes\/([0-9a-f]{64})/gi)].map(m=>m[1].toLowerCase()),
+            ...[...html.matchAll(/render\.crafty\.gg\/[a-z0-9/_-]*cape[a-z0-9/_-]*\/([0-9a-f]{64})/gi)].map(m=>m[1].toLowerCase()),
+          ].map(h=>({hash:h,at:null}));
+          skins = skins.concat(pageSkins);
+          capes = capes.concat(pageCapes);
+        }
+      }catch{}
       // de-dup by hash, keep order (newest-first as crafty returns)
       const uniq = list => { const seen=new Set(); return list.filter(x=>!seen.has(x.hash)&&seen.add(x.hash)); };
       return { skins:uniq(skins), capes:uniq(capes) };
