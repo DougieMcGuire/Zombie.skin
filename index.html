@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v22 \u00b7 laby-hist";
+const BUILD = "v23 \u00b7 omni-history";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -437,14 +437,11 @@ const API = {
     return null;
   },
   async lookup(ident){
-    const [pdb, vrc, crafty] = await Promise.all([ this._playerdb(ident), this._vrc(ident), this._crafty(ident) ]);
+    const [pdb, vrc] = await Promise.all([ this._playerdb(ident), this._vrc(ident) ]);
     if(pdb && pdb.rate && !vrc) throw new Error("Rate limited \u2014 try again in a moment");
     const uuid0 = (pdb && pdb.id) || (vrc && vrc.id) || null;
     const labyHist = uuid0 ? await this._laby(uuid0) : null;
     const nameHist = labyHist || (vrc && vrc.history) || null;
-    const skinHist = (crafty && crafty.skins && crafty.skins.length) ? crafty.skins : null;
-    const capeHist = (crafty && crafty.capes && crafty.capes.length) ? crafty.capes : null;
-    console.info("[zombie.skin] crafty history:", (skinHist||[]).length, "skins,", (capeHist||[]).length, "capes");
     // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history + crafty skins/capes.
     if(pdb && pdb.id){
       const uname = pdb.name;
@@ -457,8 +454,6 @@ const API = {
         slim: pdb.slim,
         head: `https://mc-heads.net/head/${pdb.id}/128`,
         history: nameHist,
-        skinHistory: skinHist,
-        capeHistory: capeHist,
         legacy:false, raw:pdb, src:"playerdb"
       };
     }
@@ -472,8 +467,6 @@ const API = {
         slim: vrc.slim,
         head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
         history: nameHist,
-        skinHistory: skinHist,
-        capeHistory: capeHist,
         legacy:false, raw:vrc, src:"vrc"
       };
     }
@@ -690,36 +683,11 @@ function renderProfile(prof, history_in, ofCape){
   const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
   const skins = [];
   if(prof.skin) skins.push({url:prof.skin, slim:prof.slim, cap:"current", cur:true});
-  // historical skins from crafty.gg (deduped against current)
-  if(Array.isArray(prof.skinHistory)){
-    const seen = new Set([prof.skinId].filter(Boolean));
-    prof.skinHistory.forEach(h=>{
-      const hash = h.hash || texHash(h.url||"");
-      if(!hash || seen.has(hash)) return;
-      seen.add(hash);
-      const key = `hist:${hash}`;
-      TEX_SOURCES[key] = [ px(`https://textures.minecraft.net/texture/${hash}`), `https://mc-heads.net/skin/${hash}` ]; // raw skin for hover try-on / skin lab
-      skins.push({url:key, hash3d:hash, slim:prof.slim, cap: h.at?fmtDate(h.at):"past", cur:false});
-    });
-  }
   const capes = [];
   const capeSeen = new Set();
   const addCape = (obj) => { const k=obj.hash||obj.url; if(k && !capeSeen.has(k)){ capeSeen.add(k); capes.push(obj); } };
   if(prof.capeId){ addCape({url:prof.cape, hash:prof.capeId, cap: CAPE_NAMES[prof.capeId]||"active", cur:true}); }
   else if(prof.cape){ addCape({url:prof.cape, cap:"active", cur:true}); }
-  // full cape history from crafty
-  if(Array.isArray(prof.capeHistory)){
-    prof.capeHistory.forEach(h=>{
-      if(!h.hash || capeSeen.has(h.hash)) return;
-      const key = `capehist:${h.hash}`;
-      TEX_SOURCES[key] = [
-        `${VRC}/cape?hash=${h.hash}`,
-        px(`https://textures.minecraft.net/texture/${h.hash}`), // every cape hash lives here
-        px(`https://mc-heads.net/cape/${h.hash}`),
-      ];
-      addCape({url:key, hash:h.hash, cap: CAPE_NAMES[h.hash] || h.name || (h.at?fmtDate(h.at):"cape"), cur:false});
-    });
-  }
   if(ofCape) addCape({url:ofCape, cap:"OptiFine", of:true});
 
   // name history from vrc.lol: [{name, changed_at}] (changed_at = unix ms or null)
@@ -788,6 +756,7 @@ function renderProfile(prof, history_in, ofCape){
     else if(capes.length) loadCapeSafe(capes[0].url);
   }
   paintGalleryTiles();
+  loadHistory(prof, capes.length);
   $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
   $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
   bindGallery(prof);
@@ -1021,6 +990,68 @@ function paintGalleryTiles(){
     });
   });
 }
+/* -------------------- OMNI-SOURCE SKIN/CAPE HISTORY -------------------- */
+// Pull raw responses from every known history source, harvest 64-hex Mojang
+// texture hashes, then load each from Mojang's CDN and classify by the image
+// itself: 64x64 = skin, 2:1 mostly-empty-right = cape, 2:1 full = legacy skin.
+function looksLikeCape(img){
+  try{
+    const c=document.createElement("canvas"); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+    const x=c.getContext("2d"); x.drawImage(img,0,0);
+    const half=Math.floor(c.width/2);
+    const d=x.getImageData(half,0,c.width-half,c.height).data;
+    let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>10) n++;
+    return n < (d.length/4)*0.02; // right half nearly empty => cape sheet
+  }catch{ return true; }
+}
+function addHistTile(kind, key, img, prof){
+  const gal = document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
+  if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
+  const un = gal.querySelector(".unavailable"); if(un) un.remove();
+  const d=document.createElement("div"); d.className="tex"; d.dataset.key=key;
+  const cv=document.createElement("canvas"); cv.className="texcv";
+  if(kind==="skin"){ cv.width=64; cv.height=64; render2DFace(cv, normalizeSkin(img)); d.dataset.skin=key; }
+  else { cv.width=40; cv.height=64; drawCapeFront(cv,img); d.dataset.cape=key; }
+  const cap=document.createElement("span"); cap.className="cap"; cap.textContent="past";
+  d.append(cv,cap); gal.appendChild(d);
+  if(kind==="skin"){
+    d.addEventListener("mouseenter",()=>loadSkinSafe(key, prof.slim?"slim":"default"));
+    d.addEventListener("mouseleave",()=>{ if(prof.skin) loadSkinSafe(prof.skin, prof.slim?"slim":"default"); });
+    d.addEventListener("click",()=>{ $$("#skinGallery .tex").forEach(x=>x.classList.remove("active")); d.classList.add("active"); openSkin(key, prof); });
+  } else {
+    d.addEventListener("mouseenter",()=>loadCapeSafe(key));
+    d.addEventListener("mouseleave",()=>{ if(prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
+  }
+}
+async function loadHistory(prof, hadCapes){
+  const uname=encodeURIComponent(prof.name);
+  const grab = async (url, direct) => { try{ const r=await fetch(direct?url:px(url)); return r.ok ? await r.text() : ""; }catch{ return ""; } };
+  const texts = await Promise.all([
+    grab(`https://api.crafty.gg/api/v2/players/${uname}`, true),   // browser-direct (if CORS-enabled)
+    grab(`https://api.crafty.gg/api/v2/players/${uname}`, false),  // via worker
+    grab(`https://crafty.gg/@${uname}`, false),                    // profile page scrape
+    grab(`https://laby.net/api/v2/user/${dashUuid(prof.id)}/get-profile`, false),
+    grab(`https://laby.net/api/v3/user/${dashUuid(prof.id)}/profile`, false),
+    grab(`https://capes.me/api/${uname}`, false),
+    grab(`https://capes.me/${uname}`, false),
+  ]);
+  const found = new Set();
+  (texts.join(" ").match(/[0-9a-f]{64}/gi)||[]).forEach(h=>found.add(h.toLowerCase()));
+  if(prof.skinId) found.delete(prof.skinId.toLowerCase());
+  if(prof.capeId) found.delete(prof.capeId.toLowerCase());
+  const hashes=[...found].slice(0,48);
+  console.info("[zombie.skin] history: harvested", hashes.length, "texture hashes");
+  hashes.forEach(async h=>{
+    const key=`hist:${h}`;
+    TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${h}`), `${VRC}/cape?hash=${h}` ];
+    const img=await loadTexImg(key);
+    if(!img) return; // hash doesn't resolve to a real texture — junk, skip silently
+    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    if(W===H) addHistTile("skin", key, img, prof);
+    else if(W/H>1.8 && W/H<2.2){ looksLikeCape(img) ? addHistTile("cape", key, img, prof) : addHistTile("skin", key, img, prof); }
+  });
+}
+
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
   try{
     if(!prof.skin || !VIEWER) return;
