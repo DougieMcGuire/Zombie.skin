@@ -280,7 +280,12 @@ const texHash = u => (String(u).match(/([0-9a-f]{16,64})/i)||[])[1] || "";
 function texCandidates(url){
   if(url.startsWith("blob:")||url.startsWith("data:")) return [url];
   if(TEX_SOURCES[url]) return TEX_SOURCES[url];
-  if(url.includes("laby.net/texture")){ const h=texHash(url); return h?[`https://api.gapple.pw/cors/laby/image/${h}`, px(url)]:[px(url)]; }
+  if(url.includes("laby.net/texture")){
+    const h=texHash(url);
+    // worker first — it already reaches laby.net (name history/skin list load through it);
+    // gapple's public CORS mirror as a secondary.
+    return h ? [px(url), `https://api.gapple.pw/cors/laby/image/${h}`] : [px(url)];
+  }
   return [px(url), url];
 }
 async function fetchTexUrl(url){
@@ -291,8 +296,10 @@ async function fetchTexUrl(url){
     try{
       const r = await fetch(cand);
       if(!r.ok) continue;
+      const ct = (r.headers.get("content-type")||"").toLowerCase();
+      if(ct.includes("json") || ct.includes("html")) continue; // error page, not an image
       const b = await r.blob();
-      if(b.size<80 || (b.type||"").includes("json") || (b.type||"").includes("html")) continue;
+      if(b.size < 80) continue;
       const u = URL.createObjectURL(b);
       TEX_CACHE[url]=u;
       return u;
