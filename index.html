@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v9 \u00b7 filehash";
+const BUILD = "v10 \u00b7 proxy-all";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -329,13 +329,23 @@ async function tryOne(cand){
     return URL.createObjectURL(b);
   }catch{ return null; }
 }
+// build the full candidate list, appending a worker-proxied version of every
+// http(s) source as a universal fallback so a host that lacks CORS still works.
+function withProxyFallbacks(cands){
+  const seen=new Set(), out=[];
+  const add=u=>{ if(u && !seen.has(u)){ seen.add(u); out.push(u); } };
+  cands.forEach(add);
+  cands.forEach(c=>{ if(/^https?:\/\//.test(c) && !c.includes(CONFIG.WORKER.replace(/^https?:\/\//,""))) add(px(c)); });
+  return out;
+}
 // race all candidates; return the first that succeeds
 async function raceCandidates(cands){
+  const all = withProxyFallbacks(cands);
   return new Promise(resolve=>{
-    let left = cands.length, done = false;
+    let left = all.length, done = false;
     if(!left) return resolve(null);
-    cands.forEach(c=>tryOne(c).then(u=>{
-      if(done) { if(u) URL.revokeObjectURL(u); return; }
+    all.forEach(c=>tryOne(c).then(u=>{
+      if(done){ if(u) URL.revokeObjectURL(u); return; }
       if(u){ done = true; resolve(u); }
       else if(--left === 0){ resolve(null); }
     }));
@@ -616,10 +626,22 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
-  // Register best sources for every historical texture: Mojang's own CDN (via
-  // file_hash) is CORS-enabled and authoritative; laby mirrors as backups.
-  skins.forEach(s=>{ if(s.file){ TEX_SOURCES[s.url]=[ `https://textures.minecraft.net/texture/${s.file}`, `https://api.gapple.pw/cors/laby/image/${s.hash}`, px(`https://laby.net/texture/image/${s.hash}.png`) ]; } });
-  capes.forEach(c=>{ if(c.file){ TEX_SOURCES[c.url]=[ `https://textures.minecraft.net/texture/${c.file}`, `https://api.gapple.pw/cors/laby/image/${c.hash}`, px(`https://laby.net/texture/image/${c.hash}.png`) ]; } });
+  // Register best sources for every historical texture. crafthead.net is ALREADY
+  // proven working for this user (current skin loads through it) and accepts a raw
+  // texture id, so it leads; Mojang CDN + laby mirrors follow.
+  const histSources = (fileHash, imgHash) => {
+    const out = [];
+    if(fileHash){ out.push(`https://crafthead.net/skin/${fileHash}`, `https://textures.minecraft.net/texture/${fileHash}`, `https://mc-heads.net/skin/${fileHash}`); }
+    if(imgHash){ out.push(`https://api.gapple.pw/cors/laby/image/${imgHash}`, px(`https://laby.net/texture/image/${imgHash}.png`)); }
+    return out;
+  };
+  skins.forEach(s=>{ const src=histSources(s.file,s.hash); if(src.length) TEX_SOURCES[s.url]=src; });
+  capes.forEach(c=>{
+    const out=[];
+    if(c.file){ out.push(`https://textures.minecraft.net/texture/${c.file}`, `https://crafthead.net/cape/${c.file}`); }
+    if(c.hash){ out.push(`https://api.gapple.pw/cors/laby/image/${c.hash}`, px(`https://laby.net/texture/image/${c.hash}.png`)); }
+    if(out.length) TEX_SOURCES[c.url]=out;
+  });
   // guarantee a cape on the 3D model — prefer the mojang cape, else the first available
   if(VIEWER){
     if(prof.cape) loadCapeSafe(prof.cape);
