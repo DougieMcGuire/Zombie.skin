@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v8 \u00b7 mirror-race";
+const BUILD = "v9 \u00b7 filehash";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -543,7 +543,7 @@ function renderProfile(prof, laby, ofCape){
       if(s.active && prof.skin) return;
       if(prof.skin && prof.skin.includes(s.image_hash)) return;
       if(skins.some(x=>x.hash===s.image_hash)) return;
-      skins.push({url:labyTex(s.image_hash), hash:s.image_hash, slim:!!s.slim_skin, cap:fmtDate(s.first_seen_at), cur:!!s.active});
+      skins.push({url:labyTex(s.image_hash), hash:s.image_hash, file:s.file_hash||null, slim:!!s.slim_skin, cap:fmtDate(s.first_seen_at), cur:!!s.active});
     });
   }
   const capes = [];
@@ -554,7 +554,7 @@ function renderProfile(prof, laby, ofCape){
       if(c.active && prof.cape) return;
       if(prof.cape && prof.cape.includes(c.image_hash)) return;
       if(capes.some(x=>x.hash===c.image_hash)) return;
-      capes.push({url:labyTex(c.image_hash), hash:c.image_hash, cap:c.active?"active":fmtDate(c.first_seen_at), cur:!!c.active});
+      capes.push({url:labyTex(c.image_hash), hash:c.image_hash, file:c.file_hash||null, cap:c.active?"active":fmtDate(c.first_seen_at), cur:!!c.active});
     });
   }
   if(ofCape) capes.push({url:ofCape, cap:"OptiFine", of:true});
@@ -616,6 +616,10 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
+  // Register best sources for every historical texture: Mojang's own CDN (via
+  // file_hash) is CORS-enabled and authoritative; laby mirrors as backups.
+  skins.forEach(s=>{ if(s.file){ TEX_SOURCES[s.url]=[ `https://textures.minecraft.net/texture/${s.file}`, `https://api.gapple.pw/cors/laby/image/${s.hash}`, px(`https://laby.net/texture/image/${s.hash}.png`) ]; } });
+  capes.forEach(c=>{ if(c.file){ TEX_SOURCES[c.url]=[ `https://textures.minecraft.net/texture/${c.file}`, `https://api.gapple.pw/cors/laby/image/${c.hash}`, px(`https://laby.net/texture/image/${c.hash}.png`) ]; } });
   // guarantee a cape on the 3D model — prefer the mojang cape, else the first available
   if(VIEWER){
     if(prof.cape) loadCapeSafe(prof.cape);
