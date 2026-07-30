@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v18 \u00b7 render-cdn";
+const BUILD = "v19 \u00b7 cape-cdn";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -661,9 +661,10 @@ function renderProfile(prof, history_in, ofCape){
   if(prof.cape){
     TEX_SOURCES[prof.cape] = [
       prof.capeId ? `${VRC}/cape?hash=${prof.capeId}` : null,
+      prof.capeId ? px(`https://textures.minecraft.net/texture/${prof.capeId}`) : null, // authoritative, full coverage
       `${VRC}/cape?username=${uname}`,
-      prof.capeId ? `https://mc-heads.net/cape/${prof.capeId}` : null,
-      `https://mc-heads.net/cape/${uuid}`,
+      prof.capeId ? px(`https://mc-heads.net/cape/${prof.capeId}`) : null,
+      px(`https://mc-heads.net/cape/${uuid}`),
     ].filter(Boolean);
   }
   const isOwner = CONFIG.OWNER && prof.name && prof.name.toLowerCase()===CONFIG.OWNER.toLowerCase();
@@ -678,7 +679,7 @@ function renderProfile(prof, history_in, ofCape){
       if(!hash || seen.has(hash)) return;
       seen.add(hash);
       const key = `hist:${hash}`;
-      TEX_SOURCES[key] = [ `https://mc-heads.net/skin/${hash}` ]; // raw skin for hover try-on / skin lab
+      TEX_SOURCES[key] = [ px(`https://textures.minecraft.net/texture/${hash}`), `https://mc-heads.net/skin/${hash}` ]; // raw skin for hover try-on / skin lab
       skins.push({url:key, hash3d:hash, slim:prof.slim, cap: h.at?fmtDate(h.at):"past", cur:false});
     });
   }
@@ -694,7 +695,8 @@ function renderProfile(prof, history_in, ofCape){
       const key = `capehist:${h.hash}`;
       TEX_SOURCES[key] = [
         `${VRC}/cape?hash=${h.hash}`,
-        `https://mc-heads.net/cape/${h.hash}`,
+        px(`https://textures.minecraft.net/texture/${h.hash}`), // every cape hash lives here
+        px(`https://mc-heads.net/cape/${h.hash}`),
       ];
       addCape({url:key, hash:h.hash, cap: CAPE_NAMES[h.hash] || h.name || (h.at?fmtDate(h.at):"cape"), cur:false});
     });
