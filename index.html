@@ -250,7 +250,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v26 \u00b7 player-only";
+const BUILD = "v27 \u00b7 laby32";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -1063,13 +1063,14 @@ async function loadHistory(prof){
   const get = async (u)=>{ try{ const r=await fetch(px(u)); return r.ok ? await r.text() : ""; }catch{ return ""; } };
   // ONLY player-specific endpoints. (Global pages like /skins?search= list everyone's
   // textures — never scrape those, and never blanket-harvest hashes from HTML.)
-  const [cApi,cPage,labyJ,capeA] = await Promise.all([
+  const [cApi,cPage,labyJ,capeA,capeB] = await Promise.all([
     get(`https://api.crafty.gg/api/v2/players/${uname}`),
     get(`https://crafty.gg/@${uname}`),
     get(`https://laby.net/api/v2/user/${uuid}/get-profile`),
     get(`https://capes.me/api/${uname}`),
+    get(`https://capes.me/${uname}`),
   ]);
-  const all=[cApi,cPage,labyJ,capeA];
+  const all=[cApi,cPage,labyJ,capeA,capeB];
   const dates=harvestDates(all);
   const cur=[(prof.skinId||"").toLowerCase(),(prof.capeId||"").toLowerCase()];
   const skinSet=new Set(), capeSet=new Set();
@@ -1083,15 +1084,22 @@ async function loadHistory(prof){
   }catch{}
   // crafty profile page — only this player's own skin renders
   { let m,re=/render\.crafty\.gg\/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi; while((m=re.exec(cPage))) put(skinSet,m[1]); }
-  // laby — labeled SKIN / CAPE arrays for this uuid
+  // laby — labeled SKIN/CAPE arrays. Entries carry EITHER a 64-char Mojang file_hash
+  // or laby's own 32-char image_hash; keep both (the latter loads from laby's CDN).
+  const labyExtra=[];
   try{ const j=JSON.parse(labyJ);
-    (j?.textures?.SKIN||[]).forEach(x=>put(skinSet,x.file_hash));
-    (j?.textures?.CAPE||[]).forEach(x=>put(capeSet,x.file_hash));
+    const take=(arr,kind,set)=>{ (arr||[]).forEach(x=>{
+      const fh=String(x.file_hash||""), ih=String(x.image_hash||"");
+      if(/^[0-9a-f]{64}$/i.test(fh)){ put(set,fh); if(x.first_seen_at) dates[fh.toLowerCase()]=x.first_seen_at; }
+      else if(/^[0-9a-f]{16,48}$/i.test(ih)) labyExtra.push({h:ih.toLowerCase(),kind,at:x.first_seen_at||null});
+    }); };
+    take(j?.textures?.SKIN,"skin",skinSet);
+    take(j?.textures?.CAPE,"cape",capeSet);
   }catch{}
-  // capes.me — player-specific cape payload
-  (capeA.match(/[0-9a-f]{64}/gi)||[]).forEach(h=>put(capeSet,h));
+  // capes.me — player-specific cape payloads
+  [capeA,capeB].forEach(t=>(t.match(/[0-9a-f]{64}/gi)||[]).forEach(h=>put(capeSet,h)));
 
-  console.info("[zombie.skin] history:", skinSet.size,"skins,",capeSet.size,"capes,",Object.keys(dates).length,"dated");
+  console.info("[zombie.skin] history:", skinSet.size,"mojang-skins,",capeSet.size,"mojang-capes,",labyExtra.length,"laby-textures");
 
   const byDate=a=>[...a].sort((x,y)=>{ const dx=dates[x],dy=dates[y];
     if(dx&&dy) return String(dy).localeCompare(String(dx)); if(dx) return -1; if(dy) return 1; return 0; });
@@ -1105,6 +1113,18 @@ async function loadHistory(prof){
   };
   byDate(skinSet).slice(0,60).forEach(h=>render(h,"skin"));
   byDate(capeSet).slice(0,40).forEach(h=>render(h,"cape"));
+  // laby-hosted textures (32-char ids) — loaded from laby's CDN via the worker
+  labyExtra.slice(0,60).forEach(async e=>{
+    const key=`laby:${e.h}`;
+    TEX_SOURCES[key]=[
+      px(`https://laby.net/texture/image/${e.h}.png`),
+      `https://api.gapple.pw/cors/laby/image/${e.h}`,
+      px(`https://laby.net/texture/skin/${e.h}.png`),
+    ];
+    const img=await loadTexImg(key);
+    if(!img) return;
+    addHistTile(classifyTexture(img)||e.kind, key, img, prof, fmtHistDate(e.at));
+  });
 }
 
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
