@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zombie.skin — Minecrafft profile lookup</title>
+<title>Zombie.skin — Minecraft profile lookup</title>
 <meta name="description" content="Look up any Minecraft player: 3D skin you can spin, capes, UUID, name history and downloadable skin variants.">
 <meta property="og:title" content="Zombie.skin — Minecraft profile lookup">
 <meta property="og:description" content="3D skins, capes, UUID and name history for any Minecraft player.">
@@ -249,7 +249,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v11 \u00b7 texid";
+const BUILD = "v12 \u00b7 proxy-cdn";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -470,7 +470,7 @@ function viewHome(){
   app().innerHTML = `
   <section class="dig">
     <div class="dig-eyebrow">MINECRAFT PLAYER DATABASE</div>
-    <h1>Every player,<br><em>dug up.</em></h1>
+    <h1>Every player,<br><em>dugg up.</em></h1>
     <form class="big-search" id="homeSearch">
       <div class="search-wrap">
         <input id="homeInput" type="text" placeholder="username or UUID\u2026" spellcheck="false" autofocus>
@@ -626,14 +626,14 @@ function renderProfile(prof, laby, ofCape){
   </div>`;
 
   initViewer(prof);
-  // Historical textures are keyed by a raw TEXTURE ID (file_hash). Only Mojang's
-  // own CDN + laby serve those correctly — crafthead/mc-heads treat the path as a
-  // UUID and return a default Steve/Alex, so they are NOT used here.
+  // Historical skins live at textures.minecraft.net/texture/{file_hash} (a real
+  // Mojang texture hash). That host sends NO CORS headers, so it MUST go through
+  // the worker (which adds them). Worker-proxied Mojang CDN leads; laby mirrors back it up.
   const histSources = (fileHash, imgHash) => {
     const out = [];
-    if(fileHash) out.push(`https://textures.minecraft.net/texture/${fileHash}`);
-    if(imgHash){ out.push(`https://api.gapple.pw/cors/laby/image/${imgHash}`, px(`https://laby.net/texture/image/${imgHash}.png`)); }
     if(fileHash) out.push(px(`https://textures.minecraft.net/texture/${fileHash}`));
+    if(imgHash) out.push(px(`https://laby.net/texture/image/${imgHash}.png`), `https://api.gapple.pw/cors/laby/image/${imgHash}`);
+    if(fileHash) out.push(`https://textures.minecraft.net/texture/${fileHash}`); // browser-direct last (in case CORS ever appears)
     return out;
   };
   skins.forEach(s=>{ const src=histSources(s.file,s.hash); if(src.length) TEX_SOURCES[s.url]=src; });
@@ -866,6 +866,7 @@ function paintGalleryTiles(){
     const url=cv.dataset.tex, kind=cv.dataset.kind;
     loadTexImg(url).then(img=>{
       if(!img){
+        console.warn("[zombie.skin] tile failed:", url, "\n tried:", withProxyFallbacks(texCandidates(url)).join("\n "));
         const ctx=cv.getContext("2d");
         ctx.fillStyle="#141a14"; ctx.fillRect(0,0,cv.width,cv.height);
         ctx.fillStyle="#59635a"; ctx.font="10px monospace"; ctx.fillText("n/a",22,36);
