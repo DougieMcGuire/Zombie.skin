@@ -190,6 +190,13 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 @media(max-width:760px){.compare{grid-template-columns:1fr}}
 .cmp-col{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:16px}
 .cmp-col input{width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--txt);font-family:var(--mono);padding:10px;border-radius:8px;margin-bottom:12px}
+/* --- gofundme support block --- */
+.gfm-wrap{max-width:1240px;margin:0 auto;padding:34px 22px 46px;border-top:1px solid var(--line)}
+.gfm-head{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:14px;text-align:center}
+.gfm-head span{color:var(--acc)}
+.gfm-inner{display:flex;justify-content:center}
+.gfm-embed{width:100%;max-width:420px}
+
 /* --- landing: the dig site --- */
 .dig{padding:54px 0 10px;max-width:880px}
 .dig-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.34em;color:var(--acc-dim);margin-bottom:18px}
@@ -240,17 +247,24 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
   </nav>
 </header>
 <main id="app"><!-- views render here --></main>
+<section class="gfm-wrap">
+  <div class="gfm-head">Help me get a <span>2016 MineCon cape</span></div>
+  <div class="gfm-inner">
+    <div class="gfm-embed" data-url="https://www.gofundme.com/f/me-get-a-fucking-2016-minecon-cape/widget/large?attribution_id=sl%3A0edfe197-6117-4523-b368-6576959a5daa"></div>
+  </div>
+</section>
 <footer id="foot">
   <span>Zombie.skin · data via Mojang &amp; laby.net · not affiliated with Mojang/Microsoft</span>
 </footer>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<script defer src="https://www.gofundme.com/static/js/embed.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/skinview3d@3.4.2/bundles/skinview3d.bundle.js"></script>
 <script>
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v29 \u00b7 full-history";
+const BUILD = "v30 \u00b7 gfm";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -756,7 +770,7 @@ function renderProfile(prof, history_in, ofCape){
             <span class="cap">${esc(c.cap)}</span></div>`).join("")
           : `<div class="unavailable">No capes on this account.</div>`}
       </div>
-<div class="gfm-embed" data-url="https://www.gofundme.com/f/me-get-a-fucking-2016-minecon-cape/widget/large?attribution_id=sl%3A0edfe197-6117-4523-b368-6576959a5daa"></div><script defer src="https://www.gofundme.com/static/js/embed.js"></script>
+
       <div class="section-title">Name history</div>
       ${renderHistory(history)}
     </div>
