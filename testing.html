@@ -6,7 +6,7 @@
 <title>IGN Lookup</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Outfit:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0A0A0A;--panel:#131313;--line:#2A2A2A;--paper:#EFEDE7;--mute:#8A8A82;--gold:#FFB000;--lilac:#B48CFF}
+:root{--ink:#0A0A0A;--panel:#131313;--line:#2A2A2A;--paper:#EFEDE7;--mute:#8A8A82;--gold:#FFB000;--lilac:#B48CFF;--red:#FF6B5A}
 *{box-sizing:border-box}
 body{margin:0;padding:28px 20px 70px;background:var(--ink);color:var(--paper);font:16px/1.5 Outfit,system-ui,sans-serif}
 .wrap{max-width:920px;margin:0 auto}
@@ -22,7 +22,7 @@ input:focus{border-color:var(--gold)}
 .chip{background:none;border:1px solid var(--line);color:var(--mute);font:12px JetBrains Mono,monospace;padding:4px 9px;cursor:pointer}
 .chip:hover{border-color:var(--gold);color:var(--gold)}
 #msg{font:13px JetBrains Mono,monospace;color:var(--gold);margin:20px 0;min-height:20px}
-#msg.bad{color:#FF6B5A}
+#msg.bad{color:var(--red)}
 #out{display:none}
 .hero{display:grid;grid-template-columns:200px 1fr;gap:24px;background:var(--panel);border:2px solid var(--paper);box-shadow:6px 6px 0 var(--gold);padding:22px}
 @media(max-width:620px){.hero{grid-template-columns:1fr}}
@@ -36,8 +36,10 @@ section{margin-top:36px}
 .sh{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
 .sh h3{font:800 20px "Bricolage Grotesque",sans-serif;text-transform:uppercase;margin:0}
 .n{font:700 12px JetBrains Mono,monospace;background:var(--gold);color:var(--ink);padding:1px 7px}
-.src{font:11px JetBrains Mono,monospace;color:var(--mute);margin-left:auto}
+.src{font:11px JetBrains Mono,monospace;color:var(--mute);margin-left:auto;text-align:right}
+.src b{color:var(--red);font-weight:400}
 .empty{color:var(--mute);font-size:14px;border-left:2px solid var(--line);padding-left:12px}
+.fail{color:var(--red);font-size:14px;border-left:2px solid var(--red);padding-left:12px}
 ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 ol li{display:flex;gap:14px;align-items:baseline;border-bottom:1px solid var(--line);padding:11px 4px}
 .i{font:11px JetBrains Mono,monospace;color:var(--mute);width:26px}
@@ -52,8 +54,7 @@ li.cur .nm{color:var(--gold)}
 .head i{position:absolute;inset:0;background-size:640px 640px;background-repeat:no-repeat;image-rendering:pixelated}
 .b{background-position:-80px -80px}.h{background-position:-400px -80px}
 .cape{width:60px;height:96px;margin:0 auto;background-size:384px 192px;background-position:-6px -6px;background-repeat:no-repeat;image-rendering:pixelated}
-.t img.raw{width:100%;height:96px;object-fit:contain;image-rendering:pixelated;background:#080808}
-.l{display:block;font:10px JetBrains Mono,monospace;color:var(--mute);margin-top:8px;letter-spacing:.04em}
+.l{display:block;font:10px JetBrains Mono,monospace;color:var(--mute);margin-top:8px;letter-spacing:.04em;word-break:break-word}
 .t a{display:block;font:10px JetBrains Mono,monospace;color:var(--lilac);text-decoration:none;margin-top:3px}
 footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;font:11px/1.8 JetBrains Mono,monospace;color:var(--mute)}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
@@ -70,7 +71,7 @@ footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;font:11
   <button class="go" id="btn">Look up</button>
 </div>
 <div class="chips"><span>try</span>
-  <button class="chip">Notch</button><button class="chip">Technoblade</button>
+  <button class="chip">Notch</button><button class="chip">marc</button>
   <button class="chip">Ph1LzA</button><button class="chip">jeb_</button>
 </div>
 
@@ -88,14 +89,14 @@ footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;font:11
     </div>
   </div>
 
-  <section><div class="sh"><h3>Names</h3><span class="n" id="cN">0</span><span class="src">laby.net archive</span></div><div id="names"></div></section>
-  <section><div class="sh"><h3>Skins worn</h3><span class="n" id="cS">0</span><span class="src">laby.net archive</span></div><div class="grid" id="skins"></div></section>
-  <section><div class="sh"><h3>Capes</h3><span class="n" id="cC">0</span><span class="src">laby.net · capes.dev</span></div><div class="grid" id="capes"></div></section>
+  <section><div class="sh"><h3>Names</h3><span class="n" id="cN">0</span><span class="src" id="sN"></span></div><div id="names"></div></section>
+  <section><div class="sh"><h3>Skins worn</h3><span class="n" id="cS">0</span><span class="src" id="sS"></span></div><div class="grid" id="skins"></div></section>
+  <section><div class="sh"><h3>Capes</h3><span class="n" id="cC">0</span><span class="src" id="sC"></span></div><div class="grid" id="capes"></div></section>
 </div>
 
 <footer>
 Mojang removed the public name-history API in 2022; past names come from laby.net's archive of it, which players can opt out of.<br>
-Skin and Mojang-cape history are dated by first/last seen. capes.dev adds OptiFine, LabyMod and MinecraftCapes. Requests retry through a CORS proxy when a source blocks the browser.
+laby.net and capes.me don't send CORS headers, so those calls race four public proxies and take whichever answers first. If a source is unreachable the section says so instead of pretending the account has nothing.
 </footer>
 </div>
 
@@ -104,17 +105,28 @@ const $ = id => document.getElementById(id);
 const msg = (t, bad) => { $('msg').textContent = t; $('msg').className = bad ? 'bad' : ''; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const day = d => d ? new Date(d).toLocaleDateString(undefined, {year:'numeric', month:'short'}) : '';
-const TEX = h => 'https://laby.net/texture/image/' + h + '.png';
+// 64-hex = Mojang texture, 32-hex = laby texture
+const TEX = h => h.length === 64
+  ? 'https://textures.minecraft.net/texture/' + h
+  : 'https://laby.net/texture/image/' + h + '.png';
 
-// direct first, then one CORS proxy
+// race every proxy at once — first valid JSON wins. returns null only if ALL fail.
 async function get(u) {
-  for (const url of [u, 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)]) {
-    try {
-      const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
-      if (r.ok) return await r.json();
-    } catch (e) {}
-  }
-  return null;
+  const routes = [
+    u,
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+    'https://corsproxy.io/?url=' + encodeURIComponent(u)
+  ];
+  try {
+    return await Promise.any(routes.map(async r => {
+      const res = await fetch(r, {signal: AbortSignal.timeout(9000)});
+      if (!res.ok) throw 0;
+      const j = JSON.parse(await res.text());
+      if (!j || j.error) throw 0;
+      return j;
+    }));
+  } catch { return null; }
 }
 
 async function uuidOf(n) {
@@ -126,15 +138,38 @@ async function uuidOf(n) {
   return d?.data?.player?.raw_id?.replace(/-/g, '') || null;
 }
 
-function tile(bg, label, href, cls, cape) {
-  const t = document.createElement('div');
+// capes.me shape isn't documented — pull {name, hash} pairs out of the capes array only
+function fromCapesMe(d) {
+  const out = [];
+  const list = d?.capes || d?.user?.capes || (Array.isArray(d) ? d : []);
+  (Array.isArray(list) ? list : Object.values(list || {})).forEach(c => {
+    if (!c || typeof c !== 'object') return;
+    const raw = c.hash || c.image_hash || c.texture || c.id || '';
+    const m = String(raw).match(/[0-9a-f]{32,64}/i);
+    if (m) out.push({name: c.name || c.alias || c.title || 'Cape', hash: m[0].toLowerCase()});
+  });
+  return out;
+}
+
+function tile(hash, label, cls, cape) {
+  const url = TEX(hash), t = document.createElement('div');
   t.className = 't' + (cls || '');
-  t.innerHTML = cape
-    ? '<div class="cape" style="background-image:url(' + bg + ')"></div>'
-    : '<div class="head"><i class="b" style="background-image:url(' + bg + ')"></i><i class="h" style="background-image:url(' + bg + ')"></i></div>';
-  t.innerHTML += '<span class="l">' + esc(label) + '</span><a href="' + href + '" target="_blank" rel="noopener">png</a>';
+  t.innerHTML = (cape
+    ? '<div class="cape" style="background-image:url(' + url + ')"></div>'
+    : '<div class="head"><i class="b" style="background-image:url(' + url + ')"></i><i class="h" style="background-image:url(' + url + ')"></i></div>')
+    + '<span class="l">' + esc(label) + '</span><a href="' + url + '" target="_blank" rel="noopener">png</a>';
+  // drop the tile if the texture 404s
+  const probe = new Image();
+  probe.onerror = () => t.remove();
+  probe.src = url;
   return t;
 }
+
+const state = (el, box, ok, empty) => {
+  $(el).innerHTML = ok ? '' : '<b>unreachable</b>';
+  if (!ok) box.innerHTML = '<p class="fail">Source did not respond. Hit Look up again — the free proxies rate-limit.</p>';
+  else if (empty) box.innerHTML = '<p class="empty">Nothing on record for this account.</p>';
+};
 
 async function run(name) {
   name = (name || $('q').value).trim();
@@ -146,10 +181,11 @@ async function run(name) {
   if (!uuid) return msg('No Java account named "' + name + '". Bedrock accounts are not in here.', true);
 
   msg('Loading profile…');
-  const [laby, prof, cdev] = await Promise.all([
+  const [laby, prof, cdev, cme] = await Promise.all([
     get('https://laby.net/api/v2/user/' + uuid + '/get-profile'),
     get('https://api.minetools.eu/profile/' + uuid),
-    get('https://api.capes.dev/load/' + uuid)
+    get('https://api.capes.dev/load/' + uuid),
+    get('https://capes.me/api/user/' + uuid)
   ]);
 
   const tex = prof?.decoded?.textures || {};
@@ -167,31 +203,42 @@ async function run(name) {
   $('out').style.display = 'block';
   location.hash = display;
 
-  // names
+  // ---- names ----
   const hist = laby?.name_history || [];
-  $('cN').textContent = hist.length || 1;
-  $('names').innerHTML = hist.length
-    ? '<ol>' + hist.map((e, i) =>
-        '<li class="' + (e.name.toLowerCase() === display.toLowerCase() ? 'cur' : '') + '">' +
-        '<span class="i">' + String(i + 1).padStart(2, '0') + '</span>' +
-        '<span class="nm">' + esc(e.name) + '</span>' +
-        '<span class="w">' + (e.changed_at ? day(e.changed_at) : 'original') + '</span></li>').join('') + '</ol>'
-    : '<p class="empty">No archived name changes for this account.</p>';
+  $('cN').textContent = hist.length;
+  const nb = $('names');
+  nb.innerHTML = '<ol>' + hist.map((e, i) =>
+    '<li class="' + (e.name.toLowerCase() === display.toLowerCase() ? 'cur' : '') + '">' +
+    '<span class="i">' + String(i + 1).padStart(2, '0') + '</span>' +
+    '<span class="nm">' + esc(e.name) + '</span>' +
+    '<span class="w">' + (e.changed_at ? day(e.changed_at) : 'original') + '</span></li>').join('') + '</ol>';
+  state('sN', nb, !!laby, !hist.length);
 
-  // skins
-  const skins = (laby?.textures?.SKIN || []).sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0) || new Date(b.last_seen_at) - new Date(a.last_seen_at));
+  // ---- skins ----
+  const skins = (laby?.textures?.SKIN || [])
+    .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0) || new Date(b.last_seen_at) - new Date(a.last_seen_at));
   $('cS').textContent = skins.length;
-  const sBox = $('skins');
-  sBox.innerHTML = skins.length ? '' : '<p class="empty">No skin history on record.</p>';
-  skins.forEach(s => sBox.appendChild(
-    tile(TEX(s.image_hash), s.active ? 'WEARING NOW' : day(s.first_seen_at), TEX(s.image_hash), s.active ? ' on' : '')));
+  const sb = $('skins');
+  sb.innerHTML = '';
+  skins.forEach(s => sb.appendChild(tile(s.image_hash, s.active ? 'WEARING NOW' : day(s.first_seen_at), s.active ? ' on' : '')));
+  state('sS', sb, !!laby, !skins.length);
 
-  // capes — laby (Mojang) + capes.dev (everything else)
-  const cBox = $('capes');
-  cBox.innerHTML = '';
+  // ---- capes: laby + capes.me + capes.dev, deduped by hash ----
+  const cb = $('capes');
+  cb.innerHTML = '';
+  const seen = new Set();
   let n = 0;
+
   (laby?.textures?.CAPE || []).forEach(c => {
-    cBox.appendChild(tile(TEX(c.image_hash), c.active ? 'EQUIPPED' : day(c.first_seen_at), TEX(c.image_hash), c.active ? ' on' : '', true));
+    if (seen.has(c.image_hash)) return;
+    seen.add(c.image_hash);
+    cb.appendChild(tile(c.image_hash, c.active ? 'EQUIPPED' : day(c.first_seen_at), c.active ? ' on' : '', true));
+    n++;
+  });
+  fromCapesMe(cme).forEach(c => {
+    if (seen.has(c.hash)) return;
+    seen.add(c.hash);
+    cb.appendChild(tile(c.hash, c.name, '', true));
     n++;
   });
   for (const [type, v] of Object.entries(cdev || {})) {
@@ -199,13 +246,14 @@ async function run(name) {
     if (!img || v.exists === false || type === 'minecraft') continue;
     const t = document.createElement('div');
     t.className = 't';
-    t.innerHTML = '<img class="raw" src="' + img + '"><span class="l">' + esc(v.capeName || type) + '</span>';
+    t.innerHTML = '<img class="cape" style="object-fit:contain;background:#080808" src="' + img + '"><span class="l">' + esc(v.capeName || type) + '</span>';
     t.querySelector('img').onerror = () => t.remove();
-    cBox.appendChild(t);
-    n++;
+    cb.appendChild(t); n++;
   }
   $('cC').textContent = n;
-  if (!n) cBox.innerHTML = '<p class="empty">This account has no capes.</p>';
+  $('sC').innerHTML = (laby ? '' : '<b>laby down</b> ') + (cme ? '' : '<b>capes.me down</b>');
+  if (!n && (laby || cme)) cb.innerHTML = '<p class="empty">This account has no capes.</p>';
+  else if (!n) cb.innerHTML = '<p class="fail">All cape sources unreachable. Try again.</p>';
 
   msg('Done — ' + display);
 }
