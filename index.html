@@ -219,6 +219,13 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* --- gallery canvas tiles --- */
 .tex canvas{width:auto;max-width:100%;height:64px;display:block;margin:0 auto;image-rendering:pixelated}
 .tex img.skin3d{height:88px;width:auto;max-width:100%;display:block;margin:0 auto;image-rendering:auto}
+/* --- CSS-cropped tiles (browser-direct images, no CORS needed) --- */
+.tex .crop{position:relative;overflow:hidden;margin:0 auto;background:#0d100d;border-radius:4px}
+.tex .crop.skin{width:64px;height:64px}
+.tex .crop.skin img{position:absolute;width:512px;height:auto;left:-64px;top:-64px;image-rendering:pixelated}
+.tex .crop.cape{width:40px;height:64px}
+.tex .crop.cape img{position:absolute;width:256px;height:auto;left:-4px;top:-4px;image-rendering:pixelated}
+
 /* --- skin lab --- */
 .lab-drop{display:block;border:2px dashed var(--line2);border-radius:var(--r);padding:56px 24px;text-align:center;color:var(--dim);cursor:pointer;transition:.18s;background:var(--panel);font-size:15px}
 .lab-drop:hover,.lab-drop.over{border-color:var(--acc);color:var(--acc)}
@@ -264,7 +271,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v32 \u00b7 DEBUG";
+const BUILD = "v33 \u00b7 direct-img";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -1165,6 +1172,31 @@ function fmtHistDate(v){
   if(/^\d{10,13}$/.test(v)) return fmtDate(new Date(Number(v.length>10?v:v*1000)).toISOString());
   return v;
 }
+
+// Tile backed by a plain <img> cropped with CSS — used for hosts that refuse the
+// worker (laby 403s datacenter IPs) but serve fine to a normal browser. No CORS.
+function addImgTile(kind, key, url, prof, caption){
+  const gal=document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
+  if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
+  const un=gal.querySelector(".unavailable"); if(un) un.remove();
+  const d=document.createElement("div"); d.className="tex"; d.dataset.key=key;
+  const crop=document.createElement("div"); crop.className="crop "+kind;
+  const im=document.createElement("img"); im.loading="lazy"; im.alt=""; im.src=url;
+  im.onerror=()=>d.remove();
+  crop.appendChild(im);
+  const cap=document.createElement("span"); cap.className="cap"; cap.textContent=caption||"past";
+  d.append(crop,cap); gal.appendChild(d);
+  if(kind==="skin"){
+    d.dataset.skin=url;
+    d.addEventListener("mouseenter",()=>{ if(VIEWER) try{ VIEWER.loadSkin(url,{model:prof.slim?"slim":"default"}); }catch{} });
+    d.addEventListener("mouseleave",()=>{ if(prof.skin) loadSkinSafe(prof.skin, prof.slim?"slim":"default"); });
+  }else{
+    d.dataset.cape=url;
+    d.addEventListener("mouseenter",()=>{ if(VIEWER) try{ VIEWER.loadCape(url); }catch{} });
+    d.addEventListener("mouseleave",()=>{ if(prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
+  }
+}
+
 function addHistTile(kind, key, img, prof, caption){
   const gal = document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
   if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
@@ -1202,43 +1234,42 @@ async function loadHistory(prof){
   const uuid=dashUuid(prof.id), uname=encodeURIComponent(prof.name);
   const grab=async u=>{ try{ const r=await fetch(px(u)); return r.ok?await r.text():""; }catch{ return ""; } };
   const [labyTxt, craftyTxt] = await Promise.all([
-    grab(`https://laby.net/api/v2/user/${uuid}/get-profile`),
+    grab(`https://laby.net/api/v2/user/${uuid}/get-profile`),   // DATA via worker (200 OK)
     grab(`https://crafty.gg/@${uname}`),
   ]);
 
-  const queue=[];
-  // --- laby: the complete, dated history ---
+  // === laby: the complete dated history. Data through the worker, IMAGES browser-direct
+  //     (laby returns 403 to the worker's datacenter IP) and cropped with CSS.
+  let nS=0,nC=0;
   try{
-    const j=JSON.parse(labyTxt), t=j.textures||{};
-    const src=h=>[ px(`https://laby.net/texture/image/${h}.png`), `https://api.gapple.pw/cors/laby/image/${h}` ];
-    (t.SKIN||[]).forEach(x=>{ const h=x.image_hash; if(h) queue.push({key:`L${h}`,src:src(h),kind:"skin",date:x.first_seen_at}); });
-    (t.CAPE||[]).forEach(x=>{ const h=x.image_hash; if(h) queue.push({key:`L${h}`,src:src(h),kind:"cape",date:x.first_seen_at}); });
+    const t=(JSON.parse(labyTxt).textures)||{};
+    const url=h=>`https://laby.net/texture/image/${h}.png`;
+    (t.SKIN||[]).forEach(x=>{
+      if(!x.image_hash || x.active) return;
+      addImgTile("skin",`L${x.image_hash}`,url(x.image_hash),prof,fmtHistDate(x.first_seen_at)); nS++;
+    });
+    (t.CAPE||[]).forEach(x=>{
+      if(!x.image_hash) return;
+      if(x.active && prof.capeId) return;
+      addImgTile("cape",`L${x.image_hash}`,url(x.image_hash),prof,fmtHistDate(x.first_seen_at)); nC++;
+    });
   }catch{}
-  // --- crafty profile page: this player's own skin renders ---
-  {
-    const dates=harvestDates([craftyTxt]);
-    let m, re=/render\.crafty\.gg\/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi;
-    while((m=re.exec(craftyTxt))){
-      const h=m[1].toLowerCase();
-      queue.push({key:`M${h}`, src:[px(`https://textures.minecraft.net/texture/${h}`)], kind:"skin", date:dates[h]});
-    }
-  }
 
-  // Seed the dedupe set with the textures already on screen (current skin + cape).
-  const fps=new Set(), keys=new Set();
-  for(const u of [prof.skin, prof.cape]){ if(!u) continue; const im=await loadTexImg(u); if(im) fps.add(fingerprint(im)); }
-
-  let shown=0;
-  for(const it of queue){
-    if(keys.has(it.key)) continue; keys.add(it.key);
-    TEX_SOURCES[it.key]=it.src;
-    const img=await loadTexImg(it.key);
+  // === crafty profile page: 64-char Mojang hashes -> Mojang CDN via worker (confirmed 200)
+  const cur=[(prof.skinId||"").toLowerCase(),(prof.capeId||"").toLowerCase()];
+  const hashes=new Set();
+  let m, re=/(?:3d\/(?:full|bust|head|body)|skins?|capes?|textures?)\/([0-9a-f]{64})/gi;
+  while((m=re.exec(craftyTxt))){ const h=m[1].toLowerCase(); if(!cur.includes(h)) hashes.add(h); }
+  const fps=new Set();
+  for(const h of [...hashes].slice(0,40)){
+    const key=`M${h}`;
+    TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${h}`) ];
+    const img=await loadTexImg(key);
     if(!img) continue;
-    const fp=fingerprint(img);
-    if(fps.has(fp)) continue; fps.add(fp);          // already shown from another source
-    addHistTile(classifyTexture(img)||it.kind, it.key, img, prof, fmtHistDate(it.date));
-    shown++;
+    const fp=fingerprint(img); if(fps.has(fp)) continue; fps.add(fp);
+    addHistTile(classifyTexture(img)||"skin", key, img, prof, "past");
   }
+  console.info(`[zombie.skin] laby ${nS} skins / ${nC} capes · crafty ${hashes.size} hashes`);
 }
 
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
