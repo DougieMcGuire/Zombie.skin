@@ -1,271 +1,1316 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>IGN Lookup</title>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Outfit:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zombie.skin — Minecraft profile lookup</title>
+<meta name="description" content="Look up any Minecraft player: 3D skin you can spin, capes, UUID, name history and downloadable skin variants.">
+<meta property="og:title" content="Zombie.skin — Minecraft profile lookup">
+<meta property="og:description" content="3D skins, capes, UUID and name history for any Minecraft player.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#000000">
+<link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'><rect width='8' height='8' fill='%233e8948'/><rect x='0' y='0' width='8' height='2' fill='%23347a3e'/><rect x='1' y='3' width='2' height='1' fill='%23091409'/><rect x='5' y='3' width='2' height='1' fill='%23091409'/><rect x='3' y='4' width='2' height='1' fill='%232e5e2e'/><rect x='2' y='5' width='1' height='2' fill='%232e5e2e'/><rect x='5' y='5' width='1' height='2' fill='%232e5e2e'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- SPA redirect restore (rafgraph technique, pairs with 404.html) -->
+<script>
+(function(l){
+  if (l.search[1] === '/') {
+    var decoded = l.search.slice(1).split('&').map(function(s){
+      return s.replace(/~and~/g, '&');
+    }).join('?');
+    window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+  }
+}(window.location));
+</script>
+
 <style>
-:root{--ink:#0A0A0A;--panel:#131313;--line:#2A2A2A;--paper:#EFEDE7;--mute:#8A8A82;--gold:#FFB000;--lilac:#B48CFF;--red:#FF6B5A}
+:root{
+  --bg:#000000; --bg2:#070907; --panel:#0b0d0b; --panel2:#101310;
+  --line:#1a201a; --line2:#263026;
+  --txt:#f2f4f2; --dim:#8a948a; --dim2:#59635a;
+  --acc:#54e868; --acc-dim:#2e7a3a; --acc-deep:#3e8948;
+  --danger:#ff4d4d;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --disp:'Space Grotesk',system-ui,sans-serif;
+  --body:'Inter',system-ui,sans-serif;
+  --r:14px;
+}
 *{box-sizing:border-box}
-body{margin:0;padding:28px 20px 70px;background:var(--ink);color:var(--paper);font:16px/1.5 Outfit,system-ui,sans-serif}
-.wrap{max-width:920px;margin:0 auto}
-h1{font:800 clamp(34px,7vw,56px)/.95 "Bricolage Grotesque",sans-serif;letter-spacing:-.03em;text-transform:uppercase;margin:0 0 6px}
-h1 em{font-style:normal;color:var(--gold)}
-.tag{color:var(--mute);font-size:14px;margin:0}
-.row{display:flex;gap:12px;margin:22px 0 10px;flex-wrap:wrap}
-input{flex:1 1 240px;min-width:0;background:var(--panel);border:2px solid var(--paper);color:var(--paper);font:17px JetBrains Mono,monospace;padding:14px 16px;box-shadow:6px 6px 0 var(--gold);outline:none}
-input:focus{border-color:var(--gold)}
-.go{background:var(--gold);color:var(--ink);border:2px solid var(--paper);font:800 17px "Bricolage Grotesque",sans-serif;letter-spacing:.04em;text-transform:uppercase;padding:14px 26px;cursor:pointer;box-shadow:6px 6px 0 var(--lilac);transition:.08s}
-.go:hover{transform:translate(3px,3px);box-shadow:3px 3px 0 var(--lilac)}
-.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--mute)}
-.chip{background:none;border:1px solid var(--line);color:var(--mute);font:12px JetBrains Mono,monospace;padding:4px 9px;cursor:pointer}
-.chip:hover{border-color:var(--gold);color:var(--gold)}
-#msg{font:13px JetBrains Mono,monospace;color:var(--gold);margin:20px 0;min-height:20px}
-#msg.bad{color:var(--red)}
-#out{display:none}
-.hero{display:grid;grid-template-columns:200px 1fr;gap:24px;background:var(--panel);border:2px solid var(--paper);box-shadow:6px 6px 0 var(--gold);padding:22px}
-@media(max-width:620px){.hero{grid-template-columns:1fr}}
-.hero img{width:100%;image-rendering:pixelated;background:#080808;border:1px solid var(--line)}
-h2{font:800 clamp(26px,5vw,38px)/1 "Bricolage Grotesque",sans-serif;letter-spacing:-.02em;margin:0;word-break:break-all}
-.f{border-top:1px solid var(--line);padding-top:8px;margin-top:10px}
-.k{font:10px JetBrains Mono,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
-.v{font:13px JetBrains Mono,monospace;word-break:break-all}
-.v a,.cp{color:var(--lilac);background:none;border:none;font:11px JetBrains Mono,monospace;cursor:pointer;padding:0 0 0 8px}
-section{margin-top:36px}
-.sh{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
-.sh h3{font:800 20px "Bricolage Grotesque",sans-serif;text-transform:uppercase;margin:0}
-.n{font:700 12px JetBrains Mono,monospace;background:var(--gold);color:var(--ink);padding:1px 7px}
-.src{font:11px JetBrains Mono,monospace;color:var(--mute);margin-left:auto;text-align:right}
-.src b{color:var(--red);font-weight:400}
-.empty{color:var(--mute);font-size:14px;border-left:2px solid var(--line);padding-left:12px}
-.fail{color:var(--red);font-size:14px;border-left:2px solid var(--red);padding-left:12px}
-ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
-ol li{display:flex;gap:14px;align-items:baseline;border-bottom:1px solid var(--line);padding:11px 4px}
-.i{font:11px JetBrains Mono,monospace;color:var(--mute);width:26px}
-.nm{font:700 16px JetBrains Mono,monospace}
-li.cur .nm{color:var(--gold)}
-.w{font:11px JetBrains Mono,monospace;color:var(--mute);margin-left:auto}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px}
-.t{background:var(--panel);border:1px solid var(--line);padding:10px;text-align:center;transition:.12s}
-.t:hover{border-color:var(--gold);transform:translateY(-3px)}
-.t.on{border:2px solid var(--gold)}
-.head{width:80px;height:80px;margin:0 auto;position:relative}
-.head i{position:absolute;inset:0;background-size:640px 640px;background-repeat:no-repeat;image-rendering:pixelated}
-.b{background-position:-80px -80px}.h{background-position:-400px -80px}
-.cape{width:60px;height:96px;margin:0 auto;background-size:384px 192px;background-position:-6px -6px;background-repeat:no-repeat;image-rendering:pixelated}
-.l{display:block;font:10px JetBrains Mono,monospace;color:var(--mute);margin-top:8px;letter-spacing:.04em;word-break:break-word}
-.t a{display:block;font:10px JetBrains Mono,monospace;color:var(--lilac);text-decoration:none;margin-top:3px}
-footer{margin-top:50px;border-top:1px solid var(--line);padding-top:14px;font:11px/1.8 JetBrains Mono,monospace;color:var(--mute)}
-:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--txt); font-family:var(--body);
+  min-height:100vh; display:flex; flex-direction:column;
+  background-image:
+    radial-gradient(1200px 500px at 50% -10%, rgba(84,232,104,.05), transparent 60%),
+    linear-gradient(rgba(84,232,104,.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84,232,104,.02) 1px, transparent 1px);
+  background-size:auto, 40px 40px, 40px 40px;
+}
+img{image-rendering:pixelated}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--acc);color:#000}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+/* topbar */
+#topbar{
+  position:sticky;top:0;z-index:40;
+  display:flex;align-items:center;gap:22px;
+  padding:14px 22px;border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,.72);backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:10px;flex:none}
+.brand-mark{
+  width:22px;height:22px;display:inline-block;image-rendering:pixelated;
+  background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'><rect width='8' height='8' fill='%233e8948'/><rect x='0' y='0' width='8' height='2' fill='%23347a3e'/><rect x='1' y='3' width='2' height='1' fill='%23091409'/><rect x='5' y='3' width='2' height='1' fill='%23091409'/><rect x='3' y='4' width='2' height='1' fill='%232e5e2e'/><rect x='2' y='5' width='1' height='2' fill='%232e5e2e'/><rect x='5' y='5' width='1' height='2' fill='%232e5e2e'/></svg>");
+  background-size:cover;border:1px solid var(--line2);
+}
+.brand-name{font-family:var(--disp);font-weight:700;letter-spacing:.14em;font-size:15px}
+.brand-name span{color:var(--acc)}
+#searchForm{flex:1;max-width:620px}
+.search-wrap{position:relative;display:flex;align-items:center}
+.search-wrap input{
+  width:100%;background:var(--panel);border:1px solid var(--line2);
+  color:var(--txt);font-family:var(--mono);font-size:14px;
+  padding:12px 78px 12px 16px;border-radius:11px;outline:none;transition:.18s;
+}
+.search-wrap input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(84,232,104,.14)}
+.search-wrap .slash-hint{
+  position:absolute;right:52px;font-family:var(--mono);font-size:11px;color:var(--dim2);
+  border:1px solid var(--line2);border-radius:5px;padding:1px 6px;background:var(--bg2);
+}
+.search-wrap button{
+  position:absolute;right:6px;top:6px;bottom:6px;width:38px;border:none;border-radius:8px;
+  background:var(--acc);color:#000;font-weight:700;font-size:16px;cursor:pointer;transition:.15s;
+}
+.search-wrap button:hover{filter:brightness(1.1)}
+.topnav{display:flex;gap:18px;font-family:var(--mono);font-size:13px;color:var(--dim)}
+.topnav a:hover{color:var(--acc)}
+
+main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
+#foot{padding:18px 22px;border-top:1px solid var(--line);color:var(--dim2);font-family:var(--mono);font-size:11px;text-align:center}
+
+/* hero / home */
+.hero{padding:60px 0 30px;text-align:center}
+.hero h1{font-family:var(--disp);font-weight:700;font-size:clamp(40px,7vw,84px);line-height:.98;margin:0 0 16px;letter-spacing:-.02em}
+.hero h1 em{font-style:normal;color:var(--acc)}
+.hero p{color:var(--dim);font-size:16px;max-width:560px;margin:0 auto 30px}
+.big-search{max-width:640px;margin:0 auto}
+.big-search .search-wrap input{padding:18px 20px;font-size:16px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+.chip{
+  font-family:var(--mono);font-size:12px;color:var(--dim);
+  border:1px solid var(--line2);border-radius:999px;padding:6px 13px;cursor:pointer;transition:.15s;background:var(--panel)
+}
+.chip:hover{border-color:var(--acc);color:var(--acc)}
+.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:56px}
+.feat-card{border:1px solid var(--line);border-radius:var(--r);padding:20px;background:var(--panel);text-align:left}
+.feat-card h3{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--acc);margin:0 0 8px;text-transform:uppercase}
+.feat-card p{color:var(--dim);font-size:14px;margin:0}
+.section-title{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:44px 0 14px}
+.mini-row{display:flex;gap:10px;flex-wrap:wrap}
+.mini-face{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--panel);cursor:pointer;transition:.15s}
+.mini-face:hover{border-color:var(--acc)}
+.mini-face img{width:32px;height:32px;border-radius:4px}
+.mini-face span{font-family:var(--mono);font-size:13px}
+
+/* profile layout */
+.profile{display:grid;grid-template-columns:380px 1fr;gap:26px;align-items:start}
+@media(max-width:900px){.profile{grid-template-columns:1fr}}
+.viewer-card{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,var(--panel2),var(--panel));overflow:hidden;position:sticky;top:84px}
+@media(max-width:900px){.viewer-card{position:static}}
+#viewerCanvas{display:block;width:100%;height:480px;background:
+  radial-gradient(60% 60% at 50% 40%, rgba(84,232,104,.07), transparent 70%);cursor:grab}
+#viewerCanvas:active{cursor:grabbing}
+.viewer-toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:12px;border-top:1px solid var(--line)}
+.vbtn{font-family:var(--mono);font-size:11px;color:var(--dim);background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:6px 10px;cursor:pointer;transition:.14s}
+.vbtn:hover{color:var(--acc);border-color:var(--acc-dim)}
+.vbtn.on{color:#000;background:var(--acc);border-color:var(--acc)}
+.vbtn:focus-visible,.chip:focus-visible,.copy:focus-visible,.dl:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+.pinfo h2{font-family:var(--disp);font-size:34px;margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid var(--line2);color:var(--dim);letter-spacing:.06em}
+.badge.model{color:var(--acc);border-color:var(--acc-dim)}
+.badge.fav{cursor:pointer}
+.badge.fav.on{color:#000;background:var(--acc);border-color:var(--acc)}
+.idrow{display:flex;flex-direction:column;gap:8px;margin:18px 0}
+.idline{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+.idline .k{color:var(--dim2);width:74px;flex:none}
+.idline .v{color:var(--txt);overflow:auto;white-space:nowrap}
+.copy{margin-left:auto;cursor:pointer;color:var(--dim);border:1px solid var(--line2);border-radius:6px;padding:2px 8px;font-size:11px;transition:.14s;flex:none;background:transparent;font-family:var(--mono)}
+.copy:hover{color:var(--acc);border-color:var(--acc-dim)}
+
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:12px;margin-top:6px}
+.tex{position:relative;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--panel);cursor:pointer;transition:.14s;display:flex;flex-direction:column;align-items:center;gap:6px}
+.tex:hover{border-color:var(--acc);transform:translateY(-2px)}
+.tex img{width:100%;height:64px;object-fit:contain}
+.tex .cap{font-family:var(--mono);font-size:10px;color:var(--dim2)}
+.tex.active{border-color:var(--acc);box-shadow:0 0 0 2px rgba(84,232,104,.22)}
+.tex .flag{position:absolute;top:6px;right:6px;font-family:var(--mono);font-size:9px;color:var(--acc)}
+
+.timeline{border-left:2px solid var(--line2);margin-left:6px;padding-left:18px;display:flex;flex-direction:column;gap:16px}
+.tl-item{position:relative}
+.tl-item::before{content:'';position:absolute;left:-25px;top:4px;width:9px;height:9px;background:var(--acc);border-radius:50%}
+.tl-name{font-family:var(--mono);font-size:15px}
+.tl-date{color:var(--dim2);font-size:12px}
+.unavailable{color:var(--dim2);font-size:13px;font-style:italic;border:1px dashed var(--line2);border-radius:9px;padding:14px}
+
+/* skin detail */
+.skin-detail{display:grid;grid-template-columns:340px 1fr;gap:26px}
+@media(max-width:820px){.skin-detail{grid-template-columns:1fr}}
+.skin-big{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:20px}
+.skin-big canvas{width:100%;height:auto;image-rendering:pixelated;background:#0d100d;border-radius:8px}
+.variant-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
+.variant{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel);display:flex;flex-direction:column;gap:8px;align-items:center}
+.variant canvas{width:96px;height:96px;image-rendering:pixelated;background:#0d100d;border-radius:6px}
+.variant .vn{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.dl{font-family:var(--mono);font-size:11px;color:#000;background:var(--acc);border:none;border-radius:6px;padding:5px 12px;cursor:pointer}
+.dl.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc-dim)}
+.render2d{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+.render2d canvas{background:#0d100d;border:1px solid var(--line);border-radius:8px}
+.vn{font-family:var(--mono);font-size:11px;color:var(--dim)}
+
+/* skeleton + errors */
+.skeleton{background:linear-gradient(90deg,var(--panel) 25%,var(--panel2) 37%,var(--panel) 63%);background-size:400% 100%;animation:sk 1.3s ease infinite;border-radius:10px}
+@keyframes sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.err{text-align:center;padding:70px 20px}
+.err h2{font-family:var(--disp);font-size:30px;margin:0 0 10px}
+.err code{font-family:var(--mono);color:var(--acc)}
+.ascii{font-family:var(--mono);white-space:pre;color:var(--acc-dim);font-size:12px;line-height:1.2;margin:0 auto 24px;display:inline-block;text-align:left}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--acc);color:#000;font-family:var(--mono);font-size:13px;font-weight:600;padding:10px 18px;border-radius:9px;opacity:0;pointer-events:none;transition:.22s;z-index:80}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* compare */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:760px){.compare{grid-template-columns:1fr}}
+.cmp-col{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:16px}
+.cmp-col input{width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--txt);font-family:var(--mono);padding:10px;border-radius:8px;margin-bottom:12px}
+/* --- gofundme support block --- */
+.gfm-wrap{max-width:1240px;margin:0 auto;padding:34px 22px 46px;border-top:1px solid var(--line)}
+.gfm-head{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:14px;text-align:center}
+.gfm-head span{color:var(--acc)}
+.gfm-inner{display:flex;justify-content:center}
+.gfm-embed{width:100%;max-width:420px}
+
+/* --- landing: the dig site --- */
+.dig{padding:54px 0 10px;max-width:880px}
+.dig-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.34em;color:var(--acc-dim);margin-bottom:18px}
+.dig h1{font-family:var(--disp);font-weight:700;font-size:clamp(44px,7.4vw,92px);line-height:.95;letter-spacing:-.025em;margin:0 0 26px}
+.dig h1 em{font-style:normal;color:var(--acc)}
+.dig .big-search{margin:0;max-width:560px}
+.dig-meta{font-family:var(--mono);font-size:12px;color:var(--dim2);margin-top:16px}
+.dig-meta a{color:var(--acc)}
+.face-wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:12px}
+.fw-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;border:1px solid var(--line);border-radius:10px;padding:12px 6px 9px;background:var(--panel);transition:.15s}
+.fw-tile:hover{border-color:var(--acc);transform:translateY(-3px)}
+.fw-tile img{width:52px;height:52px;border-radius:5px}
+.fw-tile img.dead{visibility:hidden}
+.fw-tile span{font-family:var(--mono);font-size:11px;color:var(--dim);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fw-tile.fav::after{content:'\2605';position:absolute;top:5px;right:7px;font-size:10px;color:#ffd84d}
+.quick-rows{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+/* --- owner gold --- */
+.viewer-card.owner{border-color:#ffd84d;box-shadow:0 0 0 1px rgba(255,216,77,.3),0 0 40px rgba(255,216,77,.08)}
+.badge.ownerb{color:#ffd84d;border-color:#8f7325;background:rgba(255,216,77,.07)}
+/* --- gallery canvas tiles --- */
+.tex canvas{width:auto;max-width:100%;height:64px;display:block;margin:0 auto;image-rendering:pixelated}
+.tex img.skin3d{height:88px;width:auto;max-width:100%;display:block;margin:0 auto;image-rendering:auto}
+/* --- skin lab --- */
+.lab-drop{display:block;border:2px dashed var(--line2);border-radius:var(--r);padding:56px 24px;text-align:center;color:var(--dim);cursor:pointer;transition:.18s;background:var(--panel);font-size:15px}
+.lab-drop:hover,.lab-drop.over{border-color:var(--acc);color:var(--acc)}
+.lab-drop input{display:none}
+.lab-top{display:grid;grid-template-columns:380px 1fr;gap:26px;align-items:start}
+@media(max-width:900px){.lab-top{grid-template-columns:1fr}}
 </style>
 </head>
-<body><div class="wrap">
-
-<h1>IGN <em>Lookup</em></h1>
-<p class="tag">Every past name, every skin ever worn, every cape — for any Java account.</p>
-
-<div class="row">
-  <input id="q" placeholder="username" maxlength="16" autocomplete="off" spellcheck="false">
-  <button class="go" id="btn">Look up</button>
-</div>
-<div class="chips"><span>try</span>
-  <button class="chip">Notch</button><button class="chip">marc</button>
-  <button class="chip">Ph1LzA</button><button class="chip">jeb_</button>
-</div>
-
-<div id="msg"></div>
-
-<div id="out">
-  <div class="hero">
-    <img id="render" alt="">
-    <div>
-      <h2 id="pn"></h2>
-      <div class="f"><div class="k">UUID</div><div class="v"><span id="ud"></span><button class="cp" data-c="ud">copy</button></div></div>
-      <div class="f"><div class="k">UUID trimmed</div><div class="v"><span id="ut"></span><button class="cp" data-c="ut">copy</button></div></div>
-      <div class="f"><div class="k">Model</div><div class="v" id="md"></div></div>
-      <div class="f"><div class="k">Current skin</div><div class="v" id="dl"></div></div>
+<body>
+<header id="topbar">
+  <a href="/" class="brand" data-link>
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">ZOMBIE<span>.SKIN</span></span>
+  </a>
+  <form id="searchForm" autocomplete="off">
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="username or UUID  —  press /" spellcheck="false">
+      <kbd class="slash-hint">/</kbd>
+      <button type="submit" aria-label="Search">→</button>
     </div>
+  </form>
+  <nav class="topnav">
+    <a href="/lab" data-link>Skin Lab</a>
+    <a href="/compare" data-link>Compare</a>
+    <a href="/random" data-link>Random</a>
+  </nav>
+</header>
+<main id="app"><!-- views render here --></main>
+<section class="gfm-wrap">
+  <div class="gfm-head">Help me get a <span>2016 MineCon cape</span></div>
+  <div class="gfm-inner">
+    <div class="gfm-embed" data-url="https://www.gofundme.com/f/me-get-a-fucking-2016-minecon-cape/widget/large?attribution_id=sl%3A0edfe197-6117-4523-b368-6576959a5daa"></div>
   </div>
-
-  <section><div class="sh"><h3>Names</h3><span class="n" id="cN">0</span><span class="src" id="sN"></span></div><div id="names"></div></section>
-  <section><div class="sh"><h3>Skins worn</h3><span class="n" id="cS">0</span><span class="src" id="sS"></span></div><div class="grid" id="skins"></div></section>
-  <section><div class="sh"><h3>Capes</h3><span class="n" id="cC">0</span><span class="src" id="sC"></span></div><div class="grid" id="capes"></div></section>
-</div>
-
-<footer>
-Mojang removed the public name-history API in 2022; past names come from laby.net's archive of it, which players can opt out of.<br>
-laby.net and capes.me don't send CORS headers, so those calls race four public proxies and take whichever answers first. If a source is unreachable the section says so instead of pretending the account has nothing.
+</section>
+<footer id="foot">
+  <span>Zombie.skin · data via Mojang &amp; laby.net · not affiliated with Mojang/Microsoft</span>
 </footer>
-</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<script defer src="https://www.gofundme.com/static/js/embed.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/skinview3d@3.4.2/bundles/skinview3d.bundle.js"></script>
 <script>
-const $ = id => document.getElementById(id);
-const msg = (t, bad) => { $('msg').textContent = t; $('msg').className = bad ? 'bad' : ''; };
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const day = d => d ? new Date(d).toLocaleDateString(undefined, {year:'numeric', month:'short'}) : '';
-// 64-hex = Mojang texture, 32-hex = laby texture
-const TEX = h => h.length === 64
-  ? 'https://textures.minecraft.net/texture/' + h
-  : 'https://laby.net/texture/image/' + h + '.png';
+/* ==========================================================================
+   Zombie.skin — single-file client. Vanilla JS, no build step.
+   ==========================================================================*/
+const BUILD = "v31 \u00b7 simple";
 
-// race every proxy at once — first valid JSON wins. returns null only if ALL fail.
-async function get(u) {
-  const routes = [
-    u,
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
-    'https://corsproxy.io/?url=' + encodeURIComponent(u)
-  ];
-  try {
-    return await Promise.any(routes.map(async r => {
-      const res = await fetch(r, {signal: AbortSignal.timeout(9000)});
-      if (!res.ok) throw 0;
-      const j = JSON.parse(await res.text());
-      if (!j || j.error) throw 0;
-      return j;
-    }));
-  } catch { return null; }
-}
-
-async function uuidOf(n) {
-  let d = await get('https://api.minetools.eu/uuid/' + n);
-  if (d?.id) return d.id.replace(/-/g, '');
-  d = await get('https://api.mojang.com/users/profiles/minecraft/' + n);
-  if (d?.id) return d.id.replace(/-/g, '');
-  d = await get('https://playerdb.co/api/player/minecraft/' + n);
-  return d?.data?.player?.raw_id?.replace(/-/g, '') || null;
-}
-
-// capes.me shape isn't documented — pull {name, hash} pairs out of the capes array only
-function fromCapesMe(d) {
-  const out = [];
-  const list = d?.capes || d?.user?.capes || (Array.isArray(d) ? d : []);
-  (Array.isArray(list) ? list : Object.values(list || {})).forEach(c => {
-    if (!c || typeof c !== 'object') return;
-    const raw = c.hash || c.image_hash || c.texture || c.id || '';
-    const m = String(raw).match(/[0-9a-f]{32,64}/i);
-    if (m) out.push({name: c.name || c.alias || c.title || 'Cape', hash: m[0].toLowerCase()});
-  });
-  return out;
-}
-
-function tile(hash, label, cls, cape) {
-  const url = TEX(hash), t = document.createElement('div');
-  t.className = 't' + (cls || '');
-  t.innerHTML = (cape
-    ? '<div class="cape" style="background-image:url(' + url + ')"></div>'
-    : '<div class="head"><i class="b" style="background-image:url(' + url + ')"></i><i class="h" style="background-image:url(' + url + ')"></i></div>')
-    + '<span class="l">' + esc(label) + '</span><a href="' + url + '" target="_blank" rel="noopener">png</a>';
-  // drop the tile if the texture 404s
-  const probe = new Image();
-  probe.onerror = () => t.remove();
-  probe.src = url;
-  return t;
-}
-
-const state = (el, box, ok, empty) => {
-  $(el).innerHTML = ok ? '' : '<b>unreachable</b>';
-  if (!ok) box.innerHTML = '<p class="fail">Source did not respond. Hit Look up again — the free proxies rate-limit.</p>';
-  else if (empty) box.innerHTML = '<p class="empty">Nothing on record for this account.</p>';
+/* -------------------- CONFIG (edit these two lines) -------------------- */
+const CONFIG = {
+  // 1) Your deployed Cloudflare Worker URL (already set to yours):
+  WORKER: "https://zombie.dtm2210.workers.dev",
+  // 2) "" for a custom domain (zombie.skin) or user.github.io root;
+  //    "/REPO" if hosted at user.github.io/REPO (also set pathSegmentsToKeep=1 in 404.html)
+  BASE: "",
+  FEATURED: ["dcug","Notch","jeb_","Dinnerbone","Grumm","deadmau5","Technoblade","CaptainSparklez","Ph1LzA","GeorgeNotFound","Dream","Skeppy"],
+  // The site owner's IGN — gets the gold OWNER treatment on their profile.
+  OWNER: "dcug"
 };
 
-async function run(name) {
-  name = (name || $('q').value).trim();
-  if (!name) return;
-  $('out').style.display = 'none';
-  msg('Resolving ' + name + '…');
+/* -------------------- tiny utils -------------------- */
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const app = ()=>document.getElementById("app");
+const UUID_RE = /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/;
+const NAME_RE = /^[a-zA-Z0-9_]{1,16}$/;
+const DEFAULT_FAVICON = document.getElementById("favicon").href;
 
-  const uuid = await uuidOf(name);
-  if (!uuid) return msg('No Java account named "' + name + '". Bedrock accounts are not in here.', true);
+// Official Minecraft cape texture hashes → display names (for labeling the gallery).
+// Only well-established hashes; unknown capes fall back to crafty's name or "cape".
+const CAPE_NAMES = {
+  "2340c0e03dd24a11b15a8b33c2a7e9e32abb2051b2481d0ba7defd635ca7a933":"Migrator",
+  "f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4":"Vanilla",
+  "28de4a81688ad18b49e735a273e086c18f1e3966956123ccb574034c06f5d336":"Pan",
+  "5ec930cdd2629c8771655c60eebeb867b4b6559b0e6d3bc71c40c96347fa03f0":"Common",
+  "afd553b39358a24edfe3b8a9a939fa5fa4faa4d9a9c3d6af8eafb377fa05c2bb":"Cherry Blossom",
+  "cd9d82ab17fd92022dbd4a86cde4c382a7540e117fae7b9a2853658505a80625":"15th Anniversary",
+  "cb40a92e32b57fd732a00fc325e7afb00a7ca74936ad50d8e860152e482cfbde":"Purple Heart",
+  "7658c5025c77cfac7574aab3af94a46a8886e3b7722a895255fbf22ab8652434":"Minecraft Experience",
+  "569b7f2a1d00d26f30efe3f9ab9ac817b1e6d35f4f3cfb0324ef2d328223d350":"Follower's",
+  "5c29410057e32abec02d870ecb52ec25fb45ea81e785a7854ae8429d7236ca26":"Mojang Office",
+  "5786fe99be377dfb6858859f926c4dbc995751e91cee373468c5fbf4865e7151":"Mojang Studios",
+  "99aba02ef05ec6aa4d42db8ee43796d6cd50e4b2954ab29f0caeb85f96bf52a1":"Founder's",
+  "953cac8b779fe41383e675ee2b86071a71658f2180f56fbce8aa315ea70e2ed6":"MineCon 2011",
+  "a2e8d97ec79100e90a75d369d1b3ba81273c4f82bc1b737e934eed4a854be1b6":"MineCon 2012",
+  "153b1a0dfcbae953cdeb6f2c2bf6bf79943239b1372780da44bcbb29273131da":"MineCon 2013",
+  "b0cc08840700447322d953a02b965f1d65a13a603bf64b17c803c21446fe1635":"MineCon 2015",
+  "e7dfea16dc83c97df01a12fabbd1216359c0cd0ea42f9999b6e97c584963e980":"MineCon 2016",
+  "56c35628fe1c4d59dd52561a3d03bfa4e1a76d397c8b9c476c2f77cb6aebb1df":"MCC 15th Year",
+  "ca29f5dd9e94fb1748203b92e36b66fda80750c87ebc18d6eafdb0e28cc1d05f":"Cobalt",
+  "5e6f3193e74cd16cdd6637d9bae5484e3a37ff2a14c2d157c659a07810b1bdca":"Copper",
+  "4b5de481e1b41f51c678155ff965c7e9526c7c641aaaf97a501916c7cb101c4b":"Home",
+  "b1fc59bc3de3cda3ed4d99c3d65b721c57cec900ece350cbda6f451099e078e7":"Menace",
+  "308b32a9e303155a0b4262f9e5483ad4a22e3412e84fe8385a0bdd73dc41fa89":"Yearn",
+  "a3f6e4f14801f3ea55e3d95b9b4ef3b5e8802d947f669de93d6ec4b9354a436b":"Zombie Horse"
+};
+let CAPE_CATALOG = {};   // built at runtime from capes.me: {mojangHash: title}
+const capeName = h => CAPE_CATALOG[h] || CAPE_NAMES[h] || null;
 
-  msg('Loading profile…');
-  const [laby, prof, cdev, cme] = await Promise.all([
-    get('https://laby.net/api/v2/user/' + uuid + '/get-profile'),
-    get('https://api.minetools.eu/profile/' + uuid),
-    get('https://api.capes.dev/load/' + uuid),
-    get('https://capes.me/api/user/' + uuid)
-  ]);
+function px(url){ return CONFIG.WORKER.replace(/\/$/,"") + "/?url=" + encodeURIComponent(url); }
+/* Texture loading — race several independent CORS mirrors at once and take the
+   first valid PNG. No single host can break the site (crafatar 521s, laby blocks
+   Workers, etc.). Everything ends as a same-origin blob so canvases stay clean. */
+let TEX_SOURCES = {};
+const TEX_CACHE = {};
+const texHash = u => (String(u).match(/([0-9a-f]{16,64})/i)||[])[1] || "";
 
-  const tex = prof?.decoded?.textures || {};
-  const display = laby?.username || name;
-
-  $('pn').textContent = display;
-  $('ud').textContent = uuid.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
-  $('ut').textContent = uuid;
-  $('md').textContent = tex.SKIN?.metadata?.model === 'slim' ? 'Slim — Alex, 3px arms' : 'Classic — Steve, 4px arms';
-  $('dl').innerHTML = tex.SKIN?.url ? '<a href="' + tex.SKIN.url + '" target="_blank" rel="noopener">download png</a>' : 'default skin';
-
-  const r = $('render');
-  r.onerror = () => r.src = 'https://mc-heads.net/body/' + uuid + '/300';
-  r.src = 'https://visage.surgeplay.com/full/300/' + uuid;
-  $('out').style.display = 'block';
-  location.hash = display;
-
-  // ---- names ----
-  const hist = laby?.name_history || [];
-  $('cN').textContent = hist.length;
-  const nb = $('names');
-  nb.innerHTML = '<ol>' + hist.map((e, i) =>
-    '<li class="' + (e.name.toLowerCase() === display.toLowerCase() ? 'cur' : '') + '">' +
-    '<span class="i">' + String(i + 1).padStart(2, '0') + '</span>' +
-    '<span class="nm">' + esc(e.name) + '</span>' +
-    '<span class="w">' + (e.changed_at ? day(e.changed_at) : 'original') + '</span></li>').join('') + '</ol>';
-  state('sN', nb, !!laby, !hist.length);
-
-  // ---- skins ----
-  const skins = (laby?.textures?.SKIN || [])
-    .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0) || new Date(b.last_seen_at) - new Date(a.last_seen_at));
-  $('cS').textContent = skins.length;
-  const sb = $('skins');
-  sb.innerHTML = '';
-  skins.forEach(s => sb.appendChild(tile(s.image_hash, s.active ? 'WEARING NOW' : day(s.first_seen_at), s.active ? ' on' : '')));
-  state('sS', sb, !!laby, !skins.length);
-
-  // ---- capes: laby + capes.me + capes.dev, deduped by hash ----
-  const cb = $('capes');
-  cb.innerHTML = '';
-  const seen = new Set();
-  let n = 0;
-
-  (laby?.textures?.CAPE || []).forEach(c => {
-    if (seen.has(c.image_hash)) return;
-    seen.add(c.image_hash);
-    cb.appendChild(tile(c.image_hash, c.active ? 'EQUIPPED' : day(c.first_seen_at), c.active ? ' on' : '', true));
-    n++;
-  });
-  fromCapesMe(cme).forEach(c => {
-    if (seen.has(c.hash)) return;
-    seen.add(c.hash);
-    cb.appendChild(tile(c.hash, c.name, '', true));
-    n++;
-  });
-  for (const [type, v] of Object.entries(cdev || {})) {
-    const img = v?.imageUrl || v?.image;
-    if (!img || v.exists === false || type === 'minecraft') continue;
-    const t = document.createElement('div');
-    t.className = 't';
-    t.innerHTML = '<img class="cape" style="object-fit:contain;background:#080808" src="' + img + '"><span class="l">' + esc(v.capeName || type) + '</span>';
-    t.querySelector('img').onerror = () => t.remove();
-    cb.appendChild(t); n++;
+function skinSourcesByUuid(uuid){
+  const id = trimUuid(uuid);
+  return [
+    `https://mc-heads.net/skin/${id}`,
+    `https://crafthead.net/skin/${id}`,
+    `https://api.mineatar.io/skin/${id}`,
+    `https://textures.minecraft.net/texture/${id}`, // ignored if not a texture id
+    `https://crafatar.com/skins/${id}`,
+    px(`https://crafthead.net/skin/${id}`),
+  ];
+}
+function capeSourcesByUuid(uuid){
+  const id = trimUuid(uuid);
+  return [
+    `https://crafthead.net/cape/${id}`,
+    `https://mc-heads.net/cape/${id}`,
+    `https://crafatar.com/capes/${id}`,
+    px(`https://crafthead.net/cape/${id}`),
+  ];
+}
+function texCandidates(url){
+  if(url.startsWith("blob:")||url.startsWith("data:")) return [url];
+  if(TEX_SOURCES[url]) return TEX_SOURCES[url];
+  const h = texHash(url);
+  if(url.includes("laby.net/texture") && h){
+    return [
+      `https://api.gapple.pw/cors/laby/image/${h}`,
+      px(`https://laby.net/texture/image/${h}.png`),
+      px(`https://laby.net/texture/skin/${h}.png`),
+      `https://api.gapple.pw/cors/laby/cape/${h}`,
+    ];
   }
-  $('cC').textContent = n;
-  $('sC').innerHTML = (laby ? '' : '<b>laby down</b> ') + (cme ? '' : '<b>capes.me down</b>');
-  if (!n && (laby || cme)) cb.innerHTML = '<p class="empty">This account has no capes.</p>';
-  else if (!n) cb.innerHTML = '<p class="fail">All cape sources unreachable. Try again.</p>';
-
-  msg('Done — ' + display);
+  if(url.includes("textures.minecraft.net") && h){
+    return [ `https://textures.minecraft.net/texture/${h}`, px(`https://textures.minecraft.net/texture/${h}`) ];
+  }
+  return [px(url), url];
 }
 
-$('btn').onclick = () => run();
-$('q').onkeydown = e => e.key === 'Enter' && run();
-document.querySelectorAll('.chip').forEach(b => b.onclick = () => run($('q').value = b.textContent));
-document.querySelectorAll('.cp').forEach(b => b.onclick = () => {
-  navigator.clipboard.writeText($(b.dataset.c).textContent);
-  b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1200);
+// resolve one candidate URL to a blob URL (or null)
+async function tryOne(cand){
+  try{
+    const r = await fetch(cand);
+    if(!r.ok) return null;
+    const ct = (r.headers.get("content-type")||"").toLowerCase();
+    if(ct.includes("json") || ct.includes("html")) return null;
+    const b = await r.blob();
+    if(b.size < 80) return null;
+    return URL.createObjectURL(b);
+  }catch{ return null; }
+}
+// build the full candidate list, appending a worker-proxied version of every
+// http(s) source as a universal fallback so a host that lacks CORS still works.
+function withProxyFallbacks(cands){
+  const seen=new Set(), out=[];
+  const add=u=>{ if(u && !seen.has(u)){ seen.add(u); out.push(u); } };
+  cands.forEach(add);
+  cands.forEach(c=>{ if(/^https?:\/\//.test(c) && !c.includes(CONFIG.WORKER.replace(/^https?:\/\//,""))) add(px(c)); });
+  return out;
+}
+// race all candidates; return the first that succeeds
+async function raceCandidates(cands){
+  const all = withProxyFallbacks(cands);
+  return new Promise(resolve=>{
+    let left = all.length, done = false;
+    if(!left) return resolve(null);
+    all.forEach(c=>tryOne(c).then(u=>{
+      if(done){ if(u) URL.revokeObjectURL(u); return; }
+      if(u){ done = true; resolve(u); }
+      else if(--left === 0){ resolve(null); }
+    }));
+  });
+}
+async function fetchTexUrl(url){
+  if(!url) return null;
+  if(url.startsWith("blob:")||url.startsWith("data:")) return url;
+  if(TEX_CACHE[url]) return TEX_CACHE[url];
+  const u = await raceCandidates(texCandidates(url));
+  if(u) TEX_CACHE[url] = u;
+  return u;
+}
+function imgFrom(src){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
+async function loadTexImg(url){ const u=await fetchTexUrl(url); return u?imgFrom(u):null; }
+async function loadCapeSafe(url, opts){ if(!url) return; const u=await fetchTexUrl(url); if(u && VIEWER){ try{ VIEWER.loadCape(u, opts||{}); }catch{} } }
+function dashUuid(id){ const h=id.replace(/-/g,""); return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; }
+function trimUuid(id){ return id.replace(/-/g,""); }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso); return d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); }
+function b64json(v){ const bin=atob(v); const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0)); return JSON.parse(new TextDecoder().decode(bytes)); }
+
+let toastT;
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600); }
+async function copyText(text){ try{ await navigator.clipboard.writeText(text); toast("Copied"); }catch{ toast("Copy failed"); } }
+
+/* -------------------- localStorage: history + favorites -------------------- */
+const Store = {
+  get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} },
+  pushRecent(name){ let r=this.get("zs_recent",[]).filter(x=>x.toLowerCase()!==name.toLowerCase()); r.unshift(name); r=r.slice(0,12); this.set("zs_recent",r); },
+  recent(){ return this.get("zs_recent",[]); },
+  favs(){ return this.get("zs_favs",[]); },
+  isFav(name){ return this.favs().some(x=>x.toLowerCase()===name.toLowerCase()); },
+  toggleFav(name){ let f=this.favs(); if(this.isFav(name)) f=f.filter(x=>x.toLowerCase()!==name.toLowerCase()); else f.unshift(name); this.set("zs_favs",f.slice(0,50)); return this.isFav(name); }
+};
+
+/* -------------------- API layer (JSON + canvas loads go via Worker) --------------------
+   NOTE: Mojang's own API (api.mojang.com / sessionserver) 403-blocks requests coming
+   Identity + textures come from PlayerDB (live Mojang session data → accurate current
+   skin, cape, and slim/classic). Name history comes from vrc.lol. vrc.lol is also a
+   full fallback if PlayerDB can't resolve the player. */
+const VRC = "https://vrc.lol";
+const API = {
+  async _playerdb(ident){
+    try{
+      const r = await fetch(px(`https://playerdb.co/api/player/minecraft/${encodeURIComponent(ident)}`));
+      if(r.status===429) return {rate:true};
+      const j = await r.json().catch(()=>null);
+      if(j && j.success && j.data?.player){
+        const p=j.data.player;
+        let skinId=null, capeId=null, slim=false;
+        const prop=(p.properties||[]).find(x=>x.name==="textures");
+        if(prop){ try{
+          const tex=b64json(prop.value);
+          skinId = texHash(tex.textures?.SKIN?.url||"") || null;
+          capeId = texHash(tex.textures?.CAPE?.url||"") || null;
+          slim = tex.textures?.SKIN?.metadata?.model === "slim";
+        }catch{} }
+        return { id:(p.raw_id||trimUuid(p.id||"")), name:p.username, skinId, capeId, slim };
+      }
+    }catch{}
+    return null;
+  },
+  async _vrc(ident){
+    try{
+      const r = await fetch(`${VRC}/api?username=${encodeURIComponent(ident)}`);
+      const j = await r.json().catch(()=>null);
+      if(j && j.success && j.java && j.java.uuid){
+        const jv=j.java;
+        return {
+          id:trimUuid(jv.uuid), name:jv.username||ident,
+          slim: !!jv.slim,
+          history: Array.isArray(jv.name_history)?jv.name_history:null,
+          hasCape: !!jv.cape_url
+        };
+      }
+    }catch{}
+    return null;
+  },
+  async lookup(ident){
+    const [pdb, vrc] = await Promise.all([ this._playerdb(ident), this._vrc(ident) ]);
+    if(pdb && pdb.rate && !vrc) throw new Error("Rate limited \u2014 try again in a moment");
+    const uuid0 = (pdb && pdb.id) || (vrc && vrc.id) || null;
+    const labyHist = uuid0 ? await this._laby(uuid0) : null;
+    const nameHist = labyHist || (vrc && vrc.history) || null;
+    // Prefer PlayerDB identity/textures (live & accurate); merge vrc name history + crafty skins/capes.
+    if(pdb && pdb.id){
+      const uname = pdb.name;
+      return {
+        id: pdb.id, name: uname,
+        skin: pdb.skinId ? mojangTex(pdb.skinId) : `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`,
+        skinId: pdb.skinId,
+        cape: pdb.capeId ? mojangTex(pdb.capeId) : (vrc && vrc.hasCape ? `${VRC}/cape?username=${encodeURIComponent(uname)}` : null),
+        capeId: pdb.capeId,
+        slim: pdb.slim,
+        head: `https://mc-heads.net/head/${pdb.id}/128`,
+        history: nameHist,
+        legacy:false, raw:pdb, src:"playerdb"
+      };
+    }
+    // Fallback: vrc.lol only
+    if(vrc && vrc.id){
+      const uname = vrc.name;
+      return {
+        id: vrc.id, name: uname,
+        skin: `${VRC}/skin?username=${encodeURIComponent(uname)}&type=java`, skinId:null,
+        cape: vrc.hasCape ? `${VRC}/cape?username=${encodeURIComponent(uname)}` : null, capeId:null,
+        slim: vrc.slim,
+        head: `${VRC}/head?username=${encodeURIComponent(uname)}&size=128`,
+        history: nameHist,
+        legacy:false, raw:vrc, src:"vrc"
+      };
+    }
+    return null;
+  },
+  async _crafty(ident){
+    // crafty.gg tracks full skin + cape history (stores 64-char Mojang hashes).
+    // Not Mojang infra, so the worker can reach it. Parse defensively — the API
+    // shape isn't fully documented, so scan for skin/cape arrays wherever they sit.
+    try{
+      const r = await fetch(px(`https://api.crafty.gg/api/v2/players/${encodeURIComponent(ident)}`));
+      if(!r.ok) return null;
+      const j = await r.json().catch(()=>null);
+      if(!j) return null;
+      const d = j.data || j;
+      const hash64 = s => (String(s).match(/([0-9a-f]{64})/i)||[])[1] || null;
+      const collect = (arr) => {
+        if(!Array.isArray(arr)) return [];
+        return arr.map(x=>{
+          if(typeof x === "string"){ return { hash:hash64(x), at:null }; }
+          const hash = hash64(x.hash||"") || hash64(x.url||"") || hash64(x.texture||"") || hash64(x.id||"") || null;
+          const at = x.createdAt || x.created_at || x.firstSeen || x.first_seen || x.addedAt || x.date || null;
+          return { hash, at, name: x.name || x.title || null };
+        }).filter(x=>x.hash);
+      };
+      // find candidate arrays anywhere one level deep
+      const skinArr = d.skins || d.skinHistory || d.skin_history || (d.textures&&d.textures.skins) || [];
+      const capeArr = d.capes || d.capeHistory || d.cape_history || (d.textures&&d.textures.capes) || [];
+      let skins = collect(skinArr);
+      let capes = collect(capeArr);
+      // ALWAYS also scrape the server-rendered profile page and union the results,
+      // so every skin/cape crafty knows shows up even if the API caps or renames fields.
+      try{
+        const hr = await fetch(px(`https://crafty.gg/@${encodeURIComponent(ident)}`));
+        if(hr.ok){
+          const html = await hr.text();
+          const pageSkins = [...html.matchAll(/render\.crafty\.gg\/3d\/full\/([0-9a-f]{64})/gi)].map(m=>({hash:m[1].toLowerCase(),at:null}));
+          const pageCapes = [
+            ...[...html.matchAll(/\/capes\/([0-9a-f]{64})/gi)].map(m=>m[1].toLowerCase()),
+            ...[...html.matchAll(/render\.crafty\.gg\/[a-z0-9/_-]*cape[a-z0-9/_-]*\/([0-9a-f]{64})/gi)].map(m=>m[1].toLowerCase()),
+          ].map(h=>({hash:h,at:null}));
+          skins = skins.concat(pageSkins);
+          capes = capes.concat(pageCapes);
+        }
+      }catch{}
+      // de-dup by hash, keep order (newest-first as crafty returns)
+      const uniq = list => { const seen=new Set(); return list.filter(x=>!seen.has(x.hash)&&seen.add(x.hash)); };
+      return { skins:uniq(skins), capes:uniq(capes) };
+    }catch{}
+    return null;
+  },
+  async _laby(uuid){
+    // laby's JSON API through the worker was reliable from day one — name history w/ dates.
+    try{
+      const r = await fetch(px(`https://laby.net/api/v2/user/${dashUuid(uuid)}/get-profile`));
+      if(!r.ok) return null;
+      const j = await r.json().catch(()=>null);
+      const h = j && (j.username_history || j.name_history);
+      if(Array.isArray(h) && h.length) return h.map(x=>({name:x.name||x.username, changed_at:x.changed_at||null}));
+    }catch{}
+    return null;
+  },
+  async optifineCape(name){
+    try{
+      const r = await fetch(px(`https://s.optifine.net/capes/${encodeURIComponent(name)}.png`));
+      if(!r.ok) return null;
+      const buf = await r.blob();
+      if(buf.size < 200) return null;
+      return URL.createObjectURL(buf);
+    }catch{ return null; }
+  }
+};
+const mojangTex = h => `https://textures.minecraft.net/texture/${h}`;
+const labyTex  = h => `https://laby.net/texture/image/${h}.png`;
+
+/* -------------------- ROUTER -------------------- */
+function base(){ return CONFIG.BASE.replace(/\/$/,""); }
+function currentPath(){
+  let p = location.pathname;
+  const b = base();
+  if(b && p.startsWith(b)) p = p.slice(b.length);
+  return p || "/";
+}
+function go(path){ history.pushState({}, "", base()+path); route(); }
+document.addEventListener("click",e=>{
+  const a = e.target.closest("a[data-link]");
+  if(a){ e.preventDefault(); go(a.getAttribute("href")); }
 });
-if (location.hash.length > 1) run($('q').value = decodeURIComponent(location.hash.slice(1)));
+window.addEventListener("popstate", route);
+
+function route(){
+  const path = currentPath();
+  const seg = path.split("/").filter(Boolean);
+  window.scrollTo(0,0);
+  destroyViewer();
+  if(seg.length===0) return viewHome();
+  if(seg[0]==="compare") return viewCompare();
+  if(seg[0]==="random")  return viewRandom();
+  if(seg[0]==="lab")     return viewLab();
+  if(seg[0][0]==="@"){
+    const ident = decodeURIComponent(seg[0].slice(1));
+    if(seg[1]==="skin" && seg[2]) return viewProfile(ident, seg[2]);
+    return viewProfile(ident, null);
+  }
+  if(NAME_RE.test(seg[0]) || UUID_RE.test(seg[0])) return viewProfile(decodeURIComponent(seg[0]), seg[2]||null);
+  return viewNotFound(path);
+}
+
+/* -------------------- HOME -------------------- */
+function viewHome(){
+  setFavicon(null);
+  document.title = "Zombie.skin — Minecraft profile lookup";
+  const recent = Store.recent(), favs = Store.favs();
+  const wall = [...new Set([...favs, ...recent, ...CONFIG.FEATURED])].slice(0,18);
+  app().innerHTML = `
+  <section class="dig">
+    <div class="dig-eyebrow">MINECRAFT PLAYER DATABASE</div>
+    <h1>Every player,<br><em>dug up.</em></h1>
+    <form class="big-search" id="homeSearch">
+      <div class="search-wrap">
+        <input id="homeInput" type="text" placeholder="username or UUID\u2026" spellcheck="false" autofocus>
+        <button type="submit">\u2192</button>
+      </div>
+    </form>
+    <div class="dig-meta">3D viewer \u00b7 skin lab \u00b7 capes \u00b7 name history \u2014 or start with <a data-link href="/@${esc(CONFIG.OWNER)}">/@${esc(CONFIG.OWNER)}</a></div>
+  </section>
+
+  <div class="section-title">The wall${favs.length?" \u00b7 \u2605 = your favorites":""}</div>
+  <div class="face-wall">
+    ${wall.map(n=>`<a class="fw-tile${Store.isFav(n)?" fav":""}" data-link href="/@${esc(n)}"><img loading="lazy" alt="" src="https://vrc.lol/head?username=${encodeURIComponent(n)}&size=64" onerror="this.classList.add('dead')"><span>${esc(n)}</span></a>`).join("")}
+  </div>
+
+  <div class="quick-rows">
+    <a class="chip" data-link href="/lab">Open the Skin Lab \u2192</a>
+    <a class="chip" data-link href="/compare">Compare two players</a>
+    <a class="chip" data-link href="/random">Random dig</a>
+  </div>`;
+  $("#homeSearch").addEventListener("submit",e=>{ e.preventDefault(); const v=$("#homeInput").value.trim(); if(v) go("/@"+encodeURIComponent(v)); });
+}
+function fillMiniRow(sel, names){
+  const row=$(sel); if(!row) return;
+  row.innerHTML = names.map(n=>`<div class="mini-face" data-name="${esc(n)}"><img alt="" loading="lazy" src="https://mc-heads.net/avatar/${encodeURIComponent(n)}/32" onerror="this.style.visibility='hidden'"><span>${esc(n)}</span></div>`).join("");
+  $$(".mini-face",row).forEach(el=>el.addEventListener("click",()=>go("/@"+encodeURIComponent(el.dataset.name))));
+}
+
+/* -------------------- PROFILE -------------------- */
+let VIEWER=null, CURRENT=null;
+function destroyViewer(){ if(VIEWER){ try{VIEWER.dispose();}catch{} VIEWER=null; } }
+
+async function viewProfile(ident, skinHashRoute){
+  document.title = `${ident} — Zombie.skin`;
+  app().innerHTML = profileSkeleton();
+  let prof;
+  try{
+    if(!UUID_RE.test(ident) && !NAME_RE.test(ident)) return viewNotFound("/@"+ident, "That is not a valid Minecraft username.");
+    prof = await API.lookup(ident);
+    if(!prof) return viewNotFound("/@"+ident, `No account named \u201c${ident}\u201d \u2014 it might be unclaimed, or check the spelling.`);
+  }catch(err){
+    return viewError(err.message);
+  }
+  CURRENT = prof;
+  Store.pushRecent(prof.name);
+  history.replaceState({},"", base()+"/@"+encodeURIComponent(prof.name)+(skinHashRoute?("/skin/"+skinHashRoute):""));
+  document.title = `${prof.name} — Zombie.skin`;
+  setFavicon(prof.skin);
+  updateOg(prof);
+
+  const ofCape = await API.optifineCape(prof.name);
+  renderProfile(prof, prof.history, ofCape);
+  if(skinHashRoute){
+    const url = /^[0-9a-f]{30,40}$/i.test(skinHashRoute) ? labyTex(skinHashRoute) : mojangTex(skinHashRoute);
+    openSkin(url, prof);
+  }
+}
+
+function profileSkeleton(){
+  return `<div class="profile">
+    <div class="viewer-card"><div class="skeleton" style="height:480px"></div><div class="viewer-toolbar"><div class="skeleton" style="height:28px;width:100%"></div></div></div>
+    <div class="pinfo">
+      <div class="skeleton" style="height:40px;width:260px;margin-bottom:20px"></div>
+      <div class="skeleton" style="height:44px;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:44px;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:150px;margin-top:24px"></div>
+    </div></div>`;
+}
+
+function renderProfile(prof, history_in, ofCape){
+  TEX_SOURCES = {};
+  const uname = encodeURIComponent(prof.name);
+  const uuid = trimUuid(prof.id);
+  // Current skin/cape: resolve-then-render-by-hash. textures.minecraft.net is
+  // content-addressed and immutable, so the live hash from PlayerDB can never render
+  // stale. By-username mirrors are NEVER used here (they cache for minutes-to-years).
+  if(prof.skin){
+    TEX_SOURCES[prof.skin] = prof.skinId
+      ? [ px(`https://textures.minecraft.net/texture/${prof.skinId}`), `https://mc-heads.net/skin/${prof.skinId}` ]
+      : [ px(`https://crafthead.net/skin/${uuid}`), `${VRC}/skin?username=${uname}&type=java` ];
+  }
+  if(prof.cape){
+    TEX_SOURCES[prof.cape] = prof.capeId
+      ? [ px(`https://textures.minecraft.net/texture/${prof.capeId}`), `${VRC}/cape?hash=${prof.capeId}` ]
+      : [ `${VRC}/cape?username=${uname}`, px(`https://crafthead.net/cape/${uuid}`) ];
+  }
+  const isOwner = CONFIG.OWNER && prof.name && prof.name.toLowerCase()===CONFIG.OWNER.toLowerCase();
+  const headCmd = `/give @p minecraft:player_head[profile="${prof.name}"]`;
+  const skins = [];
+  if(prof.skin) skins.push({url:prof.skin, slim:prof.slim, cap:"current", cur:true});
+  const capes = [];
+  const capeSeen = new Set();
+  const addCape = (obj) => { const k=obj.hash||obj.url; if(k && !capeSeen.has(k)){ capeSeen.add(k); capes.push(obj); } };
+  if(prof.capeId){ addCape({url:prof.cape, hash:prof.capeId, cap: capeName(prof.capeId)||"active", cur:true}); }
+  else if(prof.cape){ addCape({url:prof.cape, cap:"active", cur:true}); }
+  if(ofCape) addCape({url:ofCape, cap:"OptiFine", of:true});
+
+  // name history from vrc.lol: [{name, changed_at}] (changed_at = unix ms or null)
+  const history = Array.isArray(history_in) && history_in.length ? history_in.map(h=>({
+    name: h.name, changed_at: h.changed_at ? new Date(h.changed_at).toISOString() : null
+  })) : null;
+  const favOn = Store.isFav(prof.name);
+
+  app().innerHTML = `
+  <div class="profile">
+    <div class="viewer-card${isOwner?" owner":""}">
+      <canvas id="viewerCanvas"></canvas>
+      <div class="viewer-toolbar">
+        <button class="vbtn on" data-anim="idle">Idle</button>
+        <button class="vbtn" data-anim="walk">Walk</button>
+        <button class="vbtn" data-anim="run">Run</button>
+        <button class="vbtn" data-anim="fly">Fly</button>
+        <button class="vbtn" data-anim="none">Pause</button>
+        <button class="vbtn" id="rotBtn">Auto-rotate</button>
+        ${capes.length?`<button class="vbtn" id="elytraBtn">Elytra</button>`:""}
+        <button class="vbtn" id="cardBtn">Share card ↓</button>
+      </div>
+    </div>
+    <div class="pinfo">
+      <h2>${esc(prof.name)}
+        <span class="badge model">${prof.slim?"SLIM / Alex":"CLASSIC / Steve"}</span>
+        ${isOwner?`<span class="badge ownerb">OWNER</span>`:""}
+        ${prof.legacy?`<span class="badge">LEGACY</span>`:""}
+        <span class="badge fav ${favOn?"on":""}" id="favBadge" tabindex="0">${favOn?"★ Favorited":"☆ Favorite"}</span>
+      </h2>
+      <div class="idrow">
+        <div class="idline"><span class="k">Username</span><span class="v">${esc(prof.name)}</span><button class="copy" data-c="${esc(prof.name)}">copy</button></div>
+        <div class="idline"><span class="k">UUID</span><span class="v">${dashUuid(prof.id)}</span><button class="copy" data-c="${dashUuid(prof.id)}">copy</button></div>
+        <div class="idline"><span class="k">Trimmed</span><span class="v">${trimUuid(prof.id)}</span><button class="copy" data-c="${trimUuid(prof.id)}">copy</button></div>
+        <div class="idline"><span class="k">Share</span><span class="v">${location.origin}${base()}/@${esc(prof.name)}</span><button class="copy" data-c="${location.origin}${base()}/@${esc(prof.name)}">copy</button></div>
+        <div class="idline"><span class="k">Head cmd</span><span class="v">${esc(headCmd)}</span><button class="copy" data-c="${esc(headCmd)}">copy</button></div>
+      </div>
+
+      <div class="section-title">Skins <span style="color:var(--dim2)">(hover = try on · click = open)</span></div>
+      <div class="gallery" id="skinGallery">
+        ${skins.length? skins.map((s,i)=>`<div class="tex ${i===0?"active":""}" data-skin="${esc(s.url)}" data-slim="${s.slim?1:0}">
+            ${s.cur?`<span class="flag">●</span>`:""}
+            <canvas class="texcv" width="64" height="64" data-tex="${esc(s.url)}" data-kind="skin"></canvas>
+            <span class="cap">${esc(s.cap)}</span></div>`).join("")
+          : `<div class="unavailable">No skins found.</div>`}
+      </div>
+
+      <div class="section-title">Capes</div>
+      <div class="gallery" id="capeGallery">
+        ${capes.length? capes.map(c=>`<div class="tex" data-cape="${esc(c.url)}">
+            ${c.cur?`<span class="flag">●</span>`:""}
+            <canvas class="texcv" width="40" height="64" data-tex="${esc(c.url)}" data-kind="cape"></canvas>
+            <span class="cap">${esc(c.cap)}</span></div>`).join("")
+          : `<div class="unavailable">No capes on this account.</div>`}
+      </div>
+
+      <div class="section-title">Name history</div>
+      ${renderHistory(history)}
+    </div>
+  </div>`;
+
+  initViewer(prof);
+  // guarantee a cape on the 3D model — prefer the mojang cape, else the first available
+  if(VIEWER){
+    if(prof.cape) loadCapeSafe(prof.cape);
+    else if(capes.length) loadCapeSafe(capes[0].url);
+  }
+  paintGalleryTiles();
+  loadHistory(prof);
+  $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
+  $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
+  bindGallery(prof);
+  bindToolbar(prof, capes);
+}
+
+function renderHistory(history){
+  if(!history || !history.length) return `<div class="unavailable">No recorded name changes for this account.</div>`;
+  const items = history.slice().reverse();
+  return `<div class="timeline">${items.map(h=>`
+    <div class="tl-item"><div class="tl-name">${esc(h.name||h.username||"?")}</div>
+    <div class="tl-date">${h.changed_at?("changed "+fmtDate(h.changed_at)):"original name"}</div></div>`).join("")}</div>`;
+}
+
+/* -------------------- 3D VIEWER -------------------- */
+function initViewer(prof){
+  const canvas = $("#viewerCanvas");
+  if(!canvas || typeof skinview3d==="undefined") return;
+  try{
+    VIEWER = new skinview3d.SkinViewer({ canvas, width: canvas.clientWidth || 380, height: 480 });
+    VIEWER.fov = 55;
+    VIEWER.zoom = 0.9;
+    VIEWER.controls.enableRotate = true;
+    VIEWER.controls.enableZoom = true;
+    VIEWER.controls.enablePan = false;
+    VIEWER.animation = new skinview3d.IdleAnimation();
+    if(prof.skin) loadSkinSafe(prof.skin, prof.slim ? "slim" : "default");
+    if(prof.cape) loadCapeSafe(prof.cape);
+    const lower=(prof.name||"").toLowerCase();
+    if(lower==="dinnerbone"||lower==="grumm"){ try{ VIEWER.playerObject.rotation.z = Math.PI; }catch{} }
+    if(lower==="deadmau5") addEars(prof);
+    window.addEventListener("resize", resizeViewer);
+  }catch(e){
+    console.error(e);
+    canvas.replaceWith(Object.assign(document.createElement("div"),{className:"unavailable",textContent:"3D viewer failed to load. Check the WORKER URL in the CONFIG at the top of the script."}));
+  }
+}
+function resizeViewer(){ if(VIEWER){ const c=$("#viewerCanvas"); if(c && c.clientWidth) VIEWER.width=c.clientWidth; } }
+function clearCape(){ if(!VIEWER) return; try{ VIEWER.resetCape(); }catch{ try{ VIEWER.loadCape(null); }catch{} } }
+async function loadSkinSafe(url, model){
+  if(!url) return;
+  const u = await fetchTexUrl(url);
+  if(u && VIEWER){ try{ VIEWER.loadSkin(u, {model}); }catch{} }
+}
+
+function bindToolbar(prof, capes){
+  const map = {
+    idle:()=>new skinview3d.IdleAnimation(),
+    walk:()=>new skinview3d.WalkingAnimation(),
+    run:()=>new skinview3d.RunningAnimation(),
+    fly:()=>new skinview3d.FlyingAnimation(),
+    none:()=>null
+  };
+  $$(".vbtn[data-anim]").forEach(b=>b.addEventListener("click",()=>{
+    if(!VIEWER) return;
+    $$(".vbtn[data-anim]").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    VIEWER.animation = map[b.dataset.anim]();
+  }));
+  const rot=$("#rotBtn");
+  if(rot) rot.addEventListener("click",()=>{ if(!VIEWER)return; VIEWER.autoRotate=!VIEWER.autoRotate; rot.classList.toggle("on",VIEWER.autoRotate); });
+  const el=$("#elytraBtn");
+  let elyOn=false;
+  const lastCape = prof.cape || (capes[0] ? capes[0].url : null);
+  if(el) el.addEventListener("click",()=>{ if(!VIEWER||!lastCape)return; elyOn=!elyOn; el.classList.toggle("on",elyOn); loadCapeSafe(lastCape,{backEquipment: elyOn?"elytra":"cape"}); });
+  const card=$("#cardBtn");
+  if(card) card.addEventListener("click",()=>makeShareCard(prof));
+}
+
+function bindGallery(prof){
+  $$("#skinGallery .tex").forEach(t=>{
+    const url=t.dataset.skin, slim=t.dataset.slim==="1";
+    t.addEventListener("mouseenter",()=>{ loadSkinSafe(url, slim?"slim":"default"); });
+    t.addEventListener("mouseleave",()=>{ if(prof.skin) loadSkinSafe(prof.skin, prof.slim?"slim":"default"); });
+    t.addEventListener("click",()=>{
+      $$("#skinGallery .tex").forEach(x=>x.classList.remove("active")); t.classList.add("active");
+      history.pushState({},"", base()+"/@"+encodeURIComponent(prof.name)+"/skin/"+skinKey(url));
+      openSkin(url, prof);
+    });
+  });
+  $$("#capeGallery .tex").forEach(t=>{
+    const url=t.dataset.cape;
+    t.addEventListener("mouseenter",()=>{ loadCapeSafe(url); });
+    t.addEventListener("mouseleave",()=>{ if(!VIEWER) return; if(prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
+  });
+}
+function skinKey(url){ const m=url.match(/([0-9a-f]{30,64})/i); return m?m[1]:encodeURIComponent(url); }
+
+/* -------------------- SKIN NORMALIZATION (handles legacy 64x32) -------------------- */
+function normalizeSkin(img){
+  const w=img.naturalWidth||img.width||64, h=img.naturalHeight||img.height||64;
+  const c=document.createElement("canvas"); c.width=64; c.height=64;
+  const ctx=c.getContext("2d");
+  ctx.drawImage(img,0,0,w,h,0,0,64,h===32?32:64);
+  if(h===32){
+    // synthesize left-limb FRONT faces by mirroring the right ones
+    const flipTo=(sx,sy,fw,fh,dx,dy)=>{ ctx.save(); ctx.translate(dx+fw,dy); ctx.scale(-1,1); ctx.drawImage(img,sx,sy,fw,fh,0,0,fw,fh); ctx.restore(); };
+    flipTo(4,20,4,12,20,52);   // right leg front -> left leg front
+    flipTo(44,20,4,12,36,52);  // right arm front -> left arm front
+  }
+  return c;
+}
+
+/* -------------------- SKIN DETAIL + VARIANTS -------------------- */
+async function openSkin(url, prof){
+  let host = $("#skinDetail");
+  if(!host){ host=document.createElement("div"); host.id="skinDetail"; app().appendChild(host); }
+  host.innerHTML = `<div class="section-title" style="margin-top:40px">Skin detail</div>
+    <div class="skin-detail">
+      <div class="skin-big">
+        <canvas id="skinRaw" width="256" height="256"></canvas>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="dl" id="dlRaw">Download PNG</button>
+          <button class="dl ghost" id="cpLink">Copy link</button>
+        </div>
+        <div class="render2d">
+          <div><canvas id="face2d" width="96" height="96"></canvas><div class="vn" style="text-align:center">face</div></div>
+          <div><canvas id="bust2d" width="96" height="96"></canvas><div class="vn" style="text-align:center">bust</div></div>
+          <div><canvas id="body2d" width="96" height="192"></canvas><div class="vn" style="text-align:center">body</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-title" style="margin-top:0">Generated variants</div>
+        <div class="variant-grid" id="variantGrid"><div class="skeleton" style="height:140px;grid-column:1/-1"></div></div>
+      </div>
+    </div>`;
+  host.scrollIntoView({behavior:"smooth"});
+  $("#cpLink").addEventListener("click",()=>copyText(location.href));
+
+  const raw = await loadTexImg(url);
+  if(!raw){ $("#variantGrid").innerHTML=`<div class="unavailable">Skin image could not be loaded.</div>`; return; }
+  const img = normalizeSkin(raw);
+
+  drawScaled($("#skinRaw"), img);
+  $("#dlRaw").addEventListener("click",()=>downloadCanvas(sourceCanvas(raw), (prof?.name||"skin")+".png"));
+
+  render2DFace($("#face2d"), img);
+  render2DBust($("#bust2d"), img);
+  render2DBody($("#body2d"), img);
+
+  const variants = [
+    ["original", p=>p],
+    ["inverted", p=>{p[0]=255-p[0];p[1]=255-p[1];p[2]=255-p[2];return p;}],
+    ["grayscale", p=>{const g=0.299*p[0]+0.587*p[1]+0.114*p[2];p[0]=p[1]=p[2]=g;return p;}],
+    ["sepia", p=>{const r=p[0],g=p[1],b=p[2];p[0]=Math.min(255,.393*r+.769*g+.189*b);p[1]=Math.min(255,.349*r+.686*g+.168*b);p[2]=Math.min(255,.272*r+.534*g+.131*b);return p;}],
+    ["hue +120", p=>rotateHue(p,120)],
+    ["hue +240", p=>rotateHue(p,240)],
+    ["high-contrast", p=>{for(let i=0;i<3;i++){let v=(p[i]/255-0.5)*1.7+0.5;p[i]=Math.max(0,Math.min(255,v*255));}return p;}],
+    ["undead", p=>{p[0]*=.55;p[1]=Math.min(255,p[1]*1.25);p[2]*=.6;return p;}],
+    ["night", p=>{p[0]*=.5;p[1]*=.6;p[2]=Math.min(255,p[2]*1.4);return p;}]
+  ];
+  const grid=$("#variantGrid");
+  grid.innerHTML="";
+  variants.forEach(([name,fn])=>{
+    const wrap=document.createElement("div"); wrap.className="variant";
+    const cv=document.createElement("canvas"); cv.width=96; cv.height=96;
+    const out=makeVariant(img, fn);
+    drawScaled(cv, out);
+    const label=document.createElement("div"); label.className="vn"; label.textContent=name;
+    const btn=document.createElement("button"); btn.className="dl"; btn.textContent="↓ PNG";
+    btn.addEventListener("click",()=>downloadCanvas(out, (prof?.name||"skin")+"_"+name.replace(/[^a-z0-9]+/gi,"_")+".png"));
+    wrap.append(cv,label,btn); grid.appendChild(wrap);
+  });
+}
+
+function sourceCanvas(img){ const c=document.createElement("canvas"); c.width=img.naturalWidth||64; c.height=img.naturalHeight||64; c.getContext("2d").drawImage(img,0,0); return c; }
+function makeVariant(img, fn){
+  const w=img.width||64, h=img.height||64;
+  const c=document.createElement("canvas"); c.width=w; c.height=h;
+  const ctx=c.getContext("2d"); ctx.drawImage(img,0,0);
+  const d=ctx.getImageData(0,0,w,h), a=d.data;
+  for(let i=0;i<a.length;i+=4){ if(a[i+3]===0) continue; const p=fn([a[i],a[i+1],a[i+2]]); a[i]=p[0];a[i+1]=p[1];a[i+2]=p[2]; }
+  ctx.putImageData(d,0,0); return c;
+}
+function rotateHue(p, deg){
+  let[r,g,b]=p.map(x=>x/255);
+  const max=Math.max(r,g,b),min=Math.min(r,g,b); let h,s,l=(max+min)/2;
+  if(max===min){h=s=0;}else{const d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);
+    switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;}h/=6;}
+  h=(h+deg/360)%1;
+  const hue2=(pp,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return pp+(q-pp)*6*t;if(t<1/2)return q;if(t<2/3)return pp+(q-pp)*(2/3-t)*6;return pp;};
+  let R,G,B;
+  if(s===0){R=G=B=l;}else{const q=l<0.5?l*(1+s):l+s-l*s;const pp=2*l-q;R=hue2(pp,q,h+1/3);G=hue2(pp,q,h);B=hue2(pp,q,h-1/3);}
+  return [R*255,G*255,B*255];
+}
+function drawScaled(canvas, src){ const ctx=canvas.getContext("2d"); ctx.imageSmoothingEnabled=false; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(src,0,0,canvas.width,canvas.height); }
+function downloadCanvas(canvas, filename){ canvas.toBlob(b=>{ if(!b){toast("Export failed");return;} const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }); }
+
+/* 2D region renders from a normalized 64x64 skin (base + overlay layers) */
+function part(ctx,img,sx,sy,sw,sh,dx,dy,dw,dh){ ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh); }
+function render2DFace(cv,img){ const ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=false;
+  part(ctx,img,8,8,8,8,0,0,cv.width,cv.height); part(ctx,img,40,8,8,8,0,0,cv.width,cv.height); }
+function render2DBust(cv,img){ const ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=false; const u=cv.width/16;
+  part(ctx,img,8,8,8,8,4*u,0,8*u,8*u);   part(ctx,img,40,8,8,8,4*u,0,8*u,8*u);      // head + hat
+  part(ctx,img,20,20,8,8,4*u,8*u,8*u,8*u); part(ctx,img,20,36,8,8,4*u,8*u,8*u,8*u); // upper torso
+  part(ctx,img,44,20,4,8,0,8*u,4*u,8*u);  part(ctx,img,44,36,4,8,0,8*u,4*u,8*u);    // right arm
+  part(ctx,img,36,52,4,8,12*u,8*u,4*u,8*u); part(ctx,img,52,52,4,8,12*u,8*u,4*u,8*u); // left arm
+}
+function render2DBody(cv,img){ const ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=false; const u=cv.width/16;
+  part(ctx,img,8,8,8,8,4*u,0,8*u,8*u);   part(ctx,img,40,8,8,8,4*u,0,8*u,8*u);          // head + hat
+  part(ctx,img,20,20,8,12,4*u,8*u,8*u,12*u); part(ctx,img,20,36,8,12,4*u,8*u,8*u,12*u); // torso + jacket
+  part(ctx,img,44,20,4,12,0,8*u,4*u,12*u);   part(ctx,img,44,36,4,12,0,8*u,4*u,12*u);   // right arm + sleeve
+  part(ctx,img,36,52,4,12,12*u,8*u,4*u,12*u); part(ctx,img,52,52,4,12,12*u,8*u,4*u,12*u); // left arm + sleeve
+  part(ctx,img,4,20,4,12,4*u,20*u,4*u,12*u);  part(ctx,img,4,36,4,12,4*u,20*u,4*u,12*u); // right leg + pants
+  part(ctx,img,20,52,4,12,8*u,20*u,4*u,12*u); part(ctx,img,4,52,4,12,8*u,20*u,4*u,12*u); // left leg + pants
+}
+
+/* -------------------- GALLERY TILE PAINTING -------------------- */
+function drawCapeFront(cv,img){
+  const ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=false;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  try{
+    const W=img.naturalWidth||img.width;
+    const s = W/64; // cape sheets are 64x32-based; front panel = (1,1) 10x16
+    ctx.drawImage(img, 1*s,1*s,10*s,16*s, 0,0,cv.width,cv.height);
+  }catch{ ctx.drawImage(img,0,0,cv.width,cv.height); }
+}
+function paintGalleryTiles(){
+  $$("canvas.texcv").forEach(cv=>{
+    const url=cv.dataset.tex, kind=cv.dataset.kind;
+    loadTexImg(url).then(img=>{
+      if(!img){
+        console.warn("[zombie.skin] tile failed:", url, "\n tried:", withProxyFallbacks(texCandidates(url)).join("\n "));
+        const ctx=cv.getContext("2d");
+        ctx.fillStyle="#10140f"; ctx.fillRect(0,0,cv.width,cv.height);
+        ctx.strokeStyle="#26302a"; ctx.strokeRect(0.5,0.5,cv.width-1,cv.height-1);
+        ctx.fillStyle="#4a5a4a"; ctx.font="18px monospace"; ctx.fillText("\u2715", cv.width/2-6, cv.height/2+6);
+        return;
+      }
+      if(kind==="skin") render2DFace(cv, normalizeSkin(img));
+      else drawCapeFront(cv,img);
+    });
+  });
+}
+/* -------------------- OMNI-SOURCE SKIN/CAPE HISTORY -------------------- */
+// Pull raw responses from every known history source, harvest 64-hex Mojang
+// texture hashes, then load each from Mojang's CDN and classify by the image
+// itself: 64x64 = skin, 2:1 mostly-empty-right = cape, 2:1 full = legacy skin.
+// Opaque-pixel ratio of a region given in 64-wide sheet coordinates.
+function regionOpaque(img, rx, ry, rw, rh){
+  try{
+    const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+    const s=W/64;
+    const X=Math.floor(rx*s), Y=Math.floor(ry*s);
+    const Wd=Math.max(1,Math.floor(rw*s)), Ht=Math.max(1,Math.floor(rh*s));
+    if(X+Wd>W || Y+Ht>H) return 0;
+    const c=document.createElement("canvas"); c.width=W; c.height=H;
+    const x=c.getContext("2d"); x.drawImage(img,0,0);
+    const d=x.getImageData(X,Y,Wd,Ht).data;
+    let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>10) n++;
+    return n/(d.length/4);
+  }catch{ return 0; }
+}
+// Skin vs cape, decided by geometry that holds for every sheet size:
+// the right-arm patch at (44,20) is opaque on every skin and empty on every cape.
+function classifyTexture(img){
+  const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+  if(!W||!H) return null;
+  const r=W/H;
+  if(Math.abs(r-1)>0.05 && Math.abs(r-2)>0.35) return null; // not a skin/cape sheet
+  const arm  = regionOpaque(img, 44,20, 4,12);
+  const head = regionOpaque(img, 8,8, 8,8);
+  return (arm>0.5 && head>0.5) ? "skin" : "cape";
+}
+// Pair each texture hash with a nearby date from the raw source text.
+function harvestDates(texts){
+  const map={};
+  const pats=[
+    /([0-9a-f]{64})[\s\S]{0,500}?"(?:first_seen_at|firstSeen|first_used|createdAt|created_at|added_at|addedAt|date|time)"\s*:\s*"([^"]{4,40})"/gi,
+    /([0-9a-f]{64})[\s\S]{0,400}?(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)/gi,
+    /([0-9a-f]{64})[\s\S]{0,300}?((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})/gi,
+  ];
+  texts.forEach(t=>{ if(!t) return; pats.forEach(p=>{ p.lastIndex=0; let m;
+    while((m=p.exec(t))){ const h=m[1].toLowerCase(); if(!map[h]) map[h]=m[2]; }
+  }); });
+  return map;
+}
+function fmtHistDate(v){
+  if(!v) return "past";
+  if(/^\d{4}-\d{2}-\d{2}/.test(v)) return fmtDate(v);
+  if(/^\d{10,13}$/.test(v)) return fmtDate(new Date(Number(v.length>10?v:v*1000)).toISOString());
+  return v;
+}
+function addHistTile(kind, key, img, prof, caption){
+  const gal = document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
+  if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
+  const un = gal.querySelector(".unavailable"); if(un) un.remove();
+  const d=document.createElement("div"); d.className="tex"; d.dataset.key=key;
+  const cv=document.createElement("canvas"); cv.className="texcv";
+  if(kind==="skin"){ cv.width=64; cv.height=64; render2DFace(cv, normalizeSkin(img)); d.dataset.skin=key; }
+  else { cv.width=40; cv.height=64; drawCapeFront(cv,img); d.dataset.cape=key; }
+  const cap=document.createElement("span"); cap.className="cap"; cap.textContent=caption||"past";
+  d.append(cv,cap); gal.appendChild(d);
+  if(kind==="skin"){
+    d.addEventListener("mouseenter",()=>loadSkinSafe(key, prof.slim?"slim":"default"));
+    d.addEventListener("mouseleave",()=>{ if(prof.skin) loadSkinSafe(prof.skin, prof.slim?"slim":"default"); });
+    d.addEventListener("click",()=>{ $$("#skinGallery .tex").forEach(x=>x.classList.remove("active")); d.classList.add("active"); openSkin(key, prof); });
+  } else {
+    d.addEventListener("mouseenter",()=>loadCapeSafe(key));
+    d.addEventListener("mouseleave",()=>{ if(prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
+  }
+}
+// Fingerprint a texture so the same skin from two sources never double-tiles.
+function fingerprint(img){
+  try{
+    const c=document.createElement("canvas"); c.width=16; c.height=16;
+    const x=c.getContext("2d"); x.imageSmoothingEnabled=false; x.drawImage(img,0,0,16,16);
+    const d=x.getImageData(0,0,16,16).data;
+    let out=""; for(let i=0;i<d.length;i+=8) out+=(d[i]>>4).toString(16);
+    return out;
+  }catch{ return Math.random().toString(); }
+}
+
+// Skin + cape history. Two sources, both proven to work in-browser:
+//   laby JSON  -> complete, dated history (same call that powers name history)
+//   crafty page -> 64-char Mojang hashes rendered off Mojang's own CDN
+async function loadHistory(prof){
+  const uuid=dashUuid(prof.id), uname=encodeURIComponent(prof.name);
+  const grab=async u=>{ try{ const r=await fetch(px(u)); return r.ok?await r.text():""; }catch{ return ""; } };
+  const [labyTxt, craftyTxt] = await Promise.all([
+    grab(`https://laby.net/api/v2/user/${uuid}/get-profile`),
+    grab(`https://crafty.gg/@${uname}`),
+  ]);
+
+  const queue=[];
+  // --- laby: the complete, dated history ---
+  try{
+    const j=JSON.parse(labyTxt), t=j.textures||{};
+    const src=h=>[ px(`https://laby.net/texture/image/${h}.png`), `https://api.gapple.pw/cors/laby/image/${h}` ];
+    (t.SKIN||[]).forEach(x=>{ const h=x.image_hash; if(h) queue.push({key:`L${h}`,src:src(h),kind:"skin",date:x.first_seen_at}); });
+    (t.CAPE||[]).forEach(x=>{ const h=x.image_hash; if(h) queue.push({key:`L${h}`,src:src(h),kind:"cape",date:x.first_seen_at}); });
+  }catch{}
+  // --- crafty profile page: this player's own skin renders ---
+  {
+    const dates=harvestDates([craftyTxt]);
+    let m, re=/render\.crafty\.gg\/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi;
+    while((m=re.exec(craftyTxt))){
+      const h=m[1].toLowerCase();
+      queue.push({key:`M${h}`, src:[px(`https://textures.minecraft.net/texture/${h}`)], kind:"skin", date:dates[h]});
+    }
+  }
+
+  // Seed the dedupe set with the textures already on screen (current skin + cape).
+  const fps=new Set(), keys=new Set();
+  for(const u of [prof.skin, prof.cape]){ if(!u) continue; const im=await loadTexImg(u); if(im) fps.add(fingerprint(im)); }
+
+  console.info("[zombie.skin] history: laby+crafty queued", queue.length, "textures");
+  let shown=0;
+  for(const it of queue){
+    if(keys.has(it.key)) continue; keys.add(it.key);
+    TEX_SOURCES[it.key]=it.src;
+    const img=await loadTexImg(it.key);
+    if(!img) continue;
+    const fp=fingerprint(img);
+    if(fps.has(fp)) continue; fps.add(fp);          // already shown from another source
+    addHistTile(classifyTexture(img)||it.kind, it.key, img, prof, fmtHistDate(it.date));
+    shown++;
+  }
+  console.info("[zombie.skin] history: rendered", shown, "tiles");
+}
+
+async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
+  try{
+    if(!prof.skin || !VIEWER) return;
+    const raw=await loadTexImg(prof.skin); if(!raw||!VIEWER) return;
+    const n=normalizeSkin(raw);
+    const p1=n.getContext("2d").getImageData(11,3,1,1).data;
+    const e=document.createElement("canvas"); e.width=14; e.height=7;
+    const c=e.getContext("2d");
+    c.fillStyle=`rgb(${p1[0]},${p1[1]},${p1[2]})`; c.fillRect(0,0,14,7);
+    c.fillStyle="rgba(0,0,0,.3)"; c.fillRect(1,1,5,5); c.fillRect(8,1,5,5);
+    VIEWER.loadEars(e.toDataURL(), {textureType:"standalone"});
+  }catch{}
+}
+
+/* -------------------- SHARE CARD -------------------- */
+async function makeShareCard(prof){
+  if(!prof.skin){ toast("No skin to render"); return; }
+  const raw = await loadTexImg(prof.skin); if(!raw){ toast("Render failed"); return; }
+  const img = normalizeSkin(raw);
+  const W=800,H=420, c=document.createElement("canvas"); c.width=W;c.height=H; const ctx=c.getContext("2d");
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="#0b0d0b"; ctx.fillRect(24,24,W-48,H-48);
+  ctx.strokeStyle="#54e868"; ctx.lineWidth=2; ctx.strokeRect(24,24,W-48,H-48);
+  const body=document.createElement("canvas"); body.width=96; body.height=192; render2DBody(body,img);
+  ctx.imageSmoothingEnabled=false; ctx.drawImage(body,60,90,140,280);
+  ctx.fillStyle="#f2f4f2"; ctx.font="700 46px 'Space Grotesk',sans-serif"; ctx.fillText(prof.name,250,150);
+  ctx.fillStyle="#8a948a"; ctx.font="18px 'JetBrains Mono',monospace";
+  ctx.fillText(dashUuid(prof.id),250,190);
+  ctx.fillText((prof.slim?"SLIM / Alex":"CLASSIC / Steve"),250,220);
+  ctx.fillStyle="#54e868"; ctx.font="700 16px 'JetBrains Mono',monospace"; ctx.fillText("ZOMBIE.SKIN \u00b7 /@"+prof.name,250,360);
+  downloadCanvas(c, prof.name+"_card.png");
+}
+
+/* -------------------- COMPARE -------------------- */
+function viewCompare(){
+  document.title="Compare — Zombie.skin"; setFavicon(null);
+  const q=new URLSearchParams(location.search);
+  app().innerHTML=`<div class="section-title">Compare two players</div>
+    <div class="compare">
+      ${cmpCol("a",q.get("a")||"")}
+      ${cmpCol("b",q.get("b")||"")}
+    </div>`;
+  ["a","b"].forEach(k=>{
+    const inp=$("#cmp_"+k);
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); loadCmp(k, inp.value.trim()); }});
+    if(inp.value) loadCmp(k, inp.value);
+  });
+}
+function cmpCol(k,val){ return `<div class="cmp-col"><input id="cmp_${k}" placeholder="username\u2026" value="${esc(val)}"><div id="cmpout_${k}"></div></div>`; }
+async function loadCmp(k,name){
+  if(!name) return; const out=$("#cmpout_"+k); out.innerHTML=`<div class="skeleton" style="height:220px"></div>`;
+  try{
+    const p = await API.lookup(name);
+    if(!p){ out.innerHTML=`<div class="unavailable">Not found.</div>`; return; }
+    out.innerHTML=`<h2 style="font-family:var(--disp)">${esc(p.name)} <span class="badge model">${p.slim?"SLIM":"CLASSIC"}</span></h2>
+      <div class="idline" style="margin:8px 0"><span class="k">UUID</span><span class="v">${dashUuid(p.id)}</span></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+        ${p.skin?`<img style="height:150px" alt="skin" src="${esc(p.skin)}">`:""}
+        ${p.cape?`<img style="height:150px" alt="cape" src="${esc(p.cape)}">`:`<span class="unavailable">No cape</span>`}
+      </div>
+      <a class="chip" data-link href="/@${esc(p.name)}" style="margin-top:12px;display:inline-block">Open full profile \u2192</a>`;
+  }catch(e){ out.innerHTML=`<div class="unavailable">Error: ${esc(e.message)}</div>`; }
+}
+
+/* -------------------- RANDOM -------------------- */
+function viewRandom(){ const n=CONFIG.FEATURED[Math.floor(Math.random()*CONFIG.FEATURED.length)]; go("/@"+encodeURIComponent(n)); }
+
+/* -------------------- SKIN LAB (bring your own skin) -------------------- */
+function viewLab(){
+  setFavicon(null);
+  document.title = "Skin Lab \u2014 Zombie.skin";
+  app().innerHTML = `
+  <div class="section-title" style="margin-top:0">Skin lab \u2014 bring your own skin</div>
+  <label class="lab-drop" id="labDrop">Drop a skin PNG here, or click to browse
+    <br><span style="font-family:var(--mono);font-size:11px;color:var(--dim2)">64\u00d764 or legacy 64\u00d732 \u00b7 nothing gets uploaded \u2014 it all runs in your browser</span>
+    <input type="file" id="labFile" accept="image/png">
+  </label>
+  <div id="labStage" style="display:none;margin-top:22px;max-width:380px">
+    <div class="viewer-card">
+      <canvas id="viewerCanvas"></canvas>
+      <div class="viewer-toolbar">
+        <button class="vbtn on" id="labClassic">Classic</button>
+        <button class="vbtn" id="labSlim">Slim</button>
+        <button class="vbtn on" id="labWalk">Walk</button>
+        <button class="vbtn" id="labRot">Auto-rotate</button>
+      </div>
+    </div>
+  </div>`;
+  let blobUrl=null, model="default";
+  const drop=$("#labDrop"), fileIn=$("#labFile");
+  const start=(file)=>{
+    if(!file || !/png$/i.test(file.type||file.name||"")){ toast("PNG files only"); return; }
+    if(blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(file);
+    $("#labStage").style.display="";
+    destroyViewer();
+    const canvas=$("#viewerCanvas");
+    try{
+      VIEWER=new skinview3d.SkinViewer({canvas,width:canvas.clientWidth||380,height:480});
+      VIEWER.fov=55; VIEWER.zoom=0.9; VIEWER.controls.enablePan=false;
+      VIEWER.animation=new skinview3d.WalkingAnimation();
+      VIEWER.loadSkin(blobUrl,{model});
+    }catch(e){ console.error(e); }
+    TEX_SOURCES={};
+    openSkin(blobUrl, {name:(file.name||"myskin").replace(/\.png$/i,"")});
+  };
+  const remodel=(m)=>{ model=m; $("#labClassic").classList.toggle("on",m==="default"); $("#labSlim").classList.toggle("on",m==="slim"); if(VIEWER&&blobUrl) VIEWER.loadSkin(blobUrl,{model:m}); };
+  $("#labClassic").addEventListener("click",()=>remodel("default"));
+  $("#labSlim").addEventListener("click",()=>remodel("slim"));
+  $("#labWalk").addEventListener("click",e=>{ if(!VIEWER)return; const on=e.target.classList.toggle("on"); VIEWER.animation=on?new skinview3d.WalkingAnimation():null; });
+  $("#labRot").addEventListener("click",e=>{ if(!VIEWER)return; VIEWER.autoRotate=!VIEWER.autoRotate; e.target.classList.toggle("on",VIEWER.autoRotate); });
+  fileIn.addEventListener("change",()=>start(fileIn.files[0]));
+  ["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop",e=>{ const f=e.dataTransfer?.files?.[0]; if(f) start(f); });
+}
+
+/* -------------------- ERROR / 404 -------------------- */
+function viewNotFound(path, msg){
+  setFavicon(null);
+  document.title="Not found — Zombie.skin";
+  app().innerHTML=`<div class="err">
+    <div class="ascii">  .----.
+ / o  o \\   404
+ |  ~~  |   nobody's buried here
+ \\ ==== /
+  '----'</div>
+    <h2>Nothing at <code>${esc(path)}</code></h2>
+    <p style="color:var(--dim)">${esc(msg||"Try another username.")}</p>
+    <a class="chip" data-link href="/">\u2190 Back home</a></div>`;
+}
+function viewError(m){
+  app().innerHTML=`<div class="err"><h2>Something broke</h2>
+    <p style="color:var(--dim)"><code>${esc(m)}</code></p>
+    <p style="color:var(--dim2)">If this persists, make sure your Cloudflare Worker is running the latest worker.js (it must allowlist playerdb.co) and that the WORKER URL in CONFIG is correct.</p>
+    <a class="chip" data-link href="/">\u2190 Home</a></div>`;
+}
+
+/* -------------------- favicon + OG -------------------- */
+function setFavicon(skinUrl){
+  const link=document.getElementById("favicon");
+  if(!skinUrl){ link.href=DEFAULT_FAVICON; return; }
+  loadTexImg(skinUrl).then(raw=>{
+    if(!raw) return;
+    const img=normalizeSkin(raw);
+    const c=document.createElement("canvas"); c.width=64;c.height=64;
+    const ctx=c.getContext("2d"); ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(img,8,8,8,8,0,0,64,64); ctx.drawImage(img,40,8,8,8,0,0,64,64);
+    try{ link.href=c.toDataURL("image/png"); }catch{}
+  });
+}
+function updateOg(prof){
+  const set=(p,v)=>{ let m=document.querySelector(`meta[property="${p}"]`); if(!m){m=document.createElement("meta");m.setAttribute("property",p);document.head.appendChild(m);} m.setAttribute("content",v); };
+  set("og:title", `${prof.name} — Zombie.skin`);
+  set("og:description", `${prof.name} \u00b7 ${prof.slim?"Slim":"Classic"} model \u00b7 UUID ${dashUuid(prof.id)}`);
+}
+
+/* -------------------- global search + shortcuts -------------------- */
+$("#searchForm").addEventListener("submit",e=>{ e.preventDefault(); const v=$("#searchInput").value.trim(); if(v){ $("#searchInput").blur(); go("/@"+encodeURIComponent(v)); } });
+document.addEventListener("keydown",e=>{
+  if(e.key==="/" && document.activeElement.tagName!=="INPUT"){ e.preventDefault(); $("#searchInput").focus(); }
+  if(e.key==="Escape" && document.activeElement.tagName==="INPUT"){ document.activeElement.blur(); }
+});
+
+/* -------------------- boot -------------------- */
+try{ const f=document.getElementById("foot"); if(f) f.querySelector("span").innerHTML += ` \u00b7 build ${BUILD}`; }catch{}
+route();
 </script>
 </body>
 </html>
