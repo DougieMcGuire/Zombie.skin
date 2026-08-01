@@ -271,7 +271,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v33 \u00b7 direct-img";
+const BUILD = "v34 \u00b7 capesme";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -1117,6 +1117,26 @@ async function zDebug(prof){
     await imgTest('laby-skin(worker)', `https://laby.net/texture/skin/${labyHash}.png`);
   }
 
+  // <img> probes — succeed even when CORS forbids fetch(); this is what tiles use
+  const imgProbe=(label,url)=>new Promise(res=>{
+    const i=new Image(), t=setTimeout(()=>res({label,result:"TIMEOUT"}),7000);
+    i.onload=()=>{clearTimeout(t);res({label,result:"LOADED",dims:i.naturalWidth+"x"+i.naturalHeight});};
+    i.onerror=()=>{clearTimeout(t);res({label,result:"FAILED"});};
+    i.src=url;
+  });
+  R.imgTags=[];
+  if(labyHash){
+    R.imgTags.push(await imgProbe('laby-DIRECT-<img>', `https://laby.net/texture/image/${labyHash}.png`));
+    R.imgTags.push(await imgProbe('laby-DIRECT-cape',  `https://laby.net/texture/cape/${labyHash}.png`));
+  }
+  // capes.me — can it name this player's capes with Mojang hashes?
+  const cmUser=await probe('capesMeUser', `https://capes.me/api/user/${prof.id}`);
+  const cmCat =await probe('capesMeCatalog', `https://capes.me/api/capes`);
+  try{ const j=JSON.parse(cmUser); const o=R.fetches.capesMeUser;
+    o.capeCount=(j.capes||[]).length; o.cape0=(j.capes||[])[0]; delete o.head; }catch{}
+  try{ const j=JSON.parse(cmCat); const o=R.fetches.capesMeCatalog;
+    const arr=Array.isArray(j)?j:(j.capes||[]); o.catalogLen=arr.length; o.entry0=arr[0]; delete o.head; }catch{}
+
   window.ZDEBUG=R;
   console.log('%c===== ZOMBIE.SKIN DEBUG — copy everything below =====','color:#54e868;font-weight:bold');
   console.log(JSON.stringify(R,null,1));
@@ -1240,7 +1260,7 @@ async function loadHistory(prof){
 
   // === laby: the complete dated history. Data through the worker, IMAGES browser-direct
   //     (laby returns 403 to the worker's datacenter IP) and cropped with CSS.
-  let nS=0,nC=0;
+  let nS=0,nC=0, LABY_CAPES=[];
   try{
     const t=(JSON.parse(labyTxt).textures)||{};
     const url=h=>`https://laby.net/texture/image/${h}.png`;
@@ -1248,11 +1268,29 @@ async function loadHistory(prof){
       if(!x.image_hash || x.active) return;
       addImgTile("skin",`L${x.image_hash}`,url(x.image_hash),prof,fmtHistDate(x.first_seen_at)); nS++;
     });
-    (t.CAPE||[]).forEach(x=>{
-      if(!x.image_hash) return;
-      if(x.active && prof.capeId) return;
-      addImgTile("cape",`L${x.image_hash}`,url(x.image_hash),prof,fmtHistDate(x.first_seen_at)); nC++;
-    });
+    LABY_CAPES=(t.CAPE||[]).filter(x=>x.image_hash && !(x.active && prof.capeId));
+  }catch{}
+
+  // === capes.me: official capes as *Mojang* hashes (renderable through the worker)
+  let cmDone=0;
+  try{
+    const [uT,cT]=await Promise.all([ grab(`https://capes.me/api/user/${trimUuid(prof.id)}`), grab(`https://capes.me/api/capes`) ]);
+    const cat=JSON.parse(cT), arr=Array.isArray(cat)?cat:(cat.capes||[]);
+    const map={};
+    arr.forEach(c=>{ if(!c||!c.type) return;
+      const h=(String(c.url||"").match(/[0-9a-f]{64}/i)||[])[0];
+      if(h) map[String(c.type).toLowerCase()]={title:c.title||c.type, hash:h.toLowerCase()}; });
+    const u=JSON.parse(uT);
+    for(const c of (u.capes||[])){
+      const e=map[String(c.type||"").toLowerCase()];
+      if(!e || e.hash===(prof.capeId||"").toLowerCase()) continue;
+      const key=`M${e.hash}`;
+      TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${e.hash}`) ];
+      const img=await loadTexImg(key);
+      if(!img) continue;
+      addHistTile("cape", key, img, prof, e.title+(c.removed?" (removed)":""));
+      cmDone++;
+    }
   }catch{}
 
   // === crafty profile page: 64-char Mojang hashes -> Mojang CDN via worker (confirmed 200)
@@ -1269,7 +1307,9 @@ async function loadHistory(prof){
     const fp=fingerprint(img); if(fps.has(fp)) continue; fps.add(fp);
     addHistTile(classifyTexture(img)||"skin", key, img, prof, "past");
   }
-  console.info(`[zombie.skin] laby ${nS} skins / ${nC} capes · crafty ${hashes.size} hashes`);
+  if(!cmDone){ LABY_CAPES.forEach(x=>{ nC++;
+    addImgTile("cape",`L${x.image_hash}`,`https://laby.net/texture/image/${x.image_hash}.png`,prof,fmtHistDate(x.first_seen_at)); }); }
+  console.info(`[zombie.skin] laby ${nS} skins/${LABY_CAPES.length} capes · capes.me ${cmDone} · crafty ${hashes.size}`);
 }
 
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
