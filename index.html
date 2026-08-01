@@ -226,6 +226,9 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 .tex .crop.cape{width:40px;height:64px}
 .tex .crop.cape img{position:absolute;width:256px;height:auto;left:-4px;top:-4px;image-rendering:pixelated}
 
+.tex .crop.raw{width:40px;height:64px}
+.tex .crop.raw img{position:static;width:100%;height:100%;object-fit:contain}
+
 /* --- skin lab --- */
 .lab-drop{display:block;border:2px dashed var(--line2);border-radius:var(--r);padding:56px 24px;text-align:center;color:var(--dim);cursor:pointer;transition:.18s;background:var(--panel);font-size:15px}
 .lab-drop:hover,.lab-drop.over{border-color:var(--acc);color:var(--acc)}
@@ -271,7 +274,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v34 \u00b7 capesme";
+const BUILD = "v35 \u00b7 capesdev";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -1137,6 +1140,10 @@ async function zDebug(prof){
   try{ const j=JSON.parse(cmCat); const o=R.fetches.capesMeCatalog;
     const arr=Array.isArray(j)?j:(j.capes||[]); o.catalogLen=arr.length; o.entry0=arr[0]; delete o.head; }catch{}
 
+  const cdT=await probe('capesDev', `https://api.capes.dev/load/${trimUuid(prof.id)}`);
+  try{ const j=JSON.parse(cdT), o=R.fetches.capesDev;
+    o.types=Object.keys(j||{}); const k=o.types[0]; if(k) o.entry0=j[k]; delete o.head; }catch{}
+
   window.ZDEBUG=R;
   console.log('%c===== ZOMBIE.SKIN DEBUG — copy everything below =====','color:#54e868;font-weight:bold');
   console.log(JSON.stringify(R,null,1));
@@ -1217,6 +1224,18 @@ function addImgTile(kind, key, url, prof, caption){
   }
 }
 
+function addRawTile(kind,key,url,prof,caption){
+  const gal=document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
+  if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
+  const un=gal.querySelector(".unavailable"); if(un) un.remove();
+  const d=document.createElement("div"); d.className="tex"; d.dataset.key=key;
+  const crop=document.createElement("div"); crop.className="crop raw";
+  const im=document.createElement("img"); im.loading="lazy"; im.alt=""; im.src=url;
+  im.onerror=()=>d.remove(); crop.appendChild(im);
+  const cap=document.createElement("span"); cap.className="cap"; cap.textContent=caption||"cape";
+  d.append(crop,cap); gal.appendChild(d);
+}
+
 function addHistTile(kind, key, img, prof, caption){
   const gal = document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
   if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
@@ -1251,65 +1270,61 @@ function fingerprint(img){
 //   laby JSON  -> complete, dated history (same call that powers name history)
 //   crafty page -> 64-char Mojang hashes rendered off Mojang's own CDN
 async function loadHistory(prof){
-  const uuid=dashUuid(prof.id), uname=encodeURIComponent(prof.name);
+  const uname=encodeURIComponent(prof.name), uuidT=trimUuid(prof.id);
   const grab=async u=>{ try{ const r=await fetch(px(u)); return r.ok?await r.text():""; }catch{ return ""; } };
-  const [labyTxt, craftyTxt] = await Promise.all([
-    grab(`https://laby.net/api/v2/user/${uuid}/get-profile`),   // DATA via worker (200 OK)
+  const [craftyTxt,cmUser,cmCat,cdTxt] = await Promise.all([
     grab(`https://crafty.gg/@${uname}`),
+    grab(`https://capes.me/api/user/${uuidT}`),
+    grab(`https://capes.me/api/capes`),
+    grab(`https://api.capes.dev/load/${uuidT}`),
   ]);
+  const cur=[(prof.skinId||"").toLowerCase(),(prof.capeId||"").toLowerCase()];
+  let nCape=0,nSkin=0;
 
-  // === laby: the complete dated history. Data through the worker, IMAGES browser-direct
-  //     (laby returns 403 to the worker's datacenter IP) and cropped with CSS.
-  let nS=0,nC=0, LABY_CAPES=[];
+  // --- capes.me: official capes, named, as Mojang hashes (worker path: confirmed 200)
   try{
-    const t=(JSON.parse(labyTxt).textures)||{};
-    const url=h=>`https://laby.net/texture/image/${h}.png`;
-    (t.SKIN||[]).forEach(x=>{
-      if(!x.image_hash || x.active) return;
-      addImgTile("skin",`L${x.image_hash}`,url(x.image_hash),prof,fmtHistDate(x.first_seen_at)); nS++;
-    });
-    LABY_CAPES=(t.CAPE||[]).filter(x=>x.image_hash && !(x.active && prof.capeId));
-  }catch{}
-
-  // === capes.me: official capes as *Mojang* hashes (renderable through the worker)
-  let cmDone=0;
-  try{
-    const [uT,cT]=await Promise.all([ grab(`https://capes.me/api/user/${trimUuid(prof.id)}`), grab(`https://capes.me/api/capes`) ]);
-    const cat=JSON.parse(cT), arr=Array.isArray(cat)?cat:(cat.capes||[]);
-    const map={};
+    const j=JSON.parse(cmCat), arr=Array.isArray(j)?j:(j.capes||[]), map={};
     arr.forEach(c=>{ if(!c||!c.type) return;
       const h=(String(c.url||"").match(/[0-9a-f]{64}/i)||[])[0];
-      if(h) map[String(c.type).toLowerCase()]={title:c.title||c.type, hash:h.toLowerCase()}; });
-    const u=JSON.parse(uT);
-    for(const c of (u.capes||[])){
+      if(h) map[String(c.type).toLowerCase()]={title:c.title||c.type,hash:h.toLowerCase()}; });
+    for(const c of (JSON.parse(cmUser).capes||[])){
       const e=map[String(c.type||"").toLowerCase()];
-      if(!e || e.hash===(prof.capeId||"").toLowerCase()) continue;
+      if(!e || e.hash===cur[1]) continue;
       const key=`M${e.hash}`;
       TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${e.hash}`) ];
-      const img=await loadTexImg(key);
-      if(!img) continue;
-      addHistTile("cape", key, img, prof, e.title+(c.removed?" (removed)":""));
-      cmDone++;
+      const img=await loadTexImg(key); if(!img) continue;
+      addHistTile("cape",key,img,prof,e.title+(c.removed?" (removed)":"")); nCape++;
     }
   }catch{}
 
-  // === crafty profile page: 64-char Mojang hashes -> Mojang CDN via worker (confirmed 200)
-  const cur=[(prof.skinId||"").toLowerCase(),(prof.capeId||"").toLowerCase()];
+  // --- capes.dev: every ecosystem (Mojang/OptiFine/LabyMod/MinecraftCapes), own CDN
+  try{
+    const j=JSON.parse(cdTxt);
+    Object.keys(j||{}).forEach(k=>{
+      const c=j[k];
+      if(!c || typeof c!=="object" || c.exists===false) return;
+      const front=(c.imageUrls&&c.imageUrls.base&&c.imageUrls.base.front)
+                || (c.imageHash?`https://api.capes.dev/img/front/${c.imageHash}`:c.imageUrl);
+      if(!front) return;
+      const t=String(c.type||k);
+      addRawTile("cape",`D${c.imageHash||k}`,front,prof,t.charAt(0).toUpperCase()+t.slice(1)); nCape++;
+    });
+  }catch{}
+
+  // --- crafty profile page: past skins as Mojang hashes (worker path: confirmed 200)
   const hashes=new Set();
-  let m, re=/(?:3d\/(?:full|bust|head|body)|skins?|capes?|textures?)\/([0-9a-f]{64})/gi;
-  while((m=re.exec(craftyTxt))){ const h=m[1].toLowerCase(); if(!cur.includes(h)) hashes.add(h); }
+  let m,re=/(?:3d\/(?:full|bust|head|body)|skins?|capes?|textures?)\/([0-9a-f]{64})|"(?:hash|texture|skin|cape)"\s*:\s*"([0-9a-f]{64})"/gi;
+  while((m=re.exec(craftyTxt))){ const h=(m[1]||m[2]||"").toLowerCase(); if(h&&!cur.includes(h)) hashes.add(h); }
   const fps=new Set();
   for(const h of [...hashes].slice(0,40)){
     const key=`M${h}`;
+    if(TEX_SOURCES[key]) continue;
     TEX_SOURCES[key]=[ px(`https://textures.minecraft.net/texture/${h}`) ];
-    const img=await loadTexImg(key);
-    if(!img) continue;
+    const img=await loadTexImg(key); if(!img) continue;
     const fp=fingerprint(img); if(fps.has(fp)) continue; fps.add(fp);
-    addHistTile(classifyTexture(img)||"skin", key, img, prof, "past");
+    addHistTile(classifyTexture(img)||"skin",key,img,prof,"past"); nSkin++;
   }
-  if(!cmDone){ LABY_CAPES.forEach(x=>{ nC++;
-    addImgTile("cape",`L${x.image_hash}`,`https://laby.net/texture/image/${x.image_hash}.png`,prof,fmtHistDate(x.first_seen_at)); }); }
-  console.info(`[zombie.skin] laby ${nS} skins/${LABY_CAPES.length} capes · capes.me ${cmDone} · crafty ${hashes.size}`);
+  console.info(`[zombie.skin] capes ${nCape} · skins ${nSkin} · crafty hashes ${hashes.size}`);
 }
 
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
