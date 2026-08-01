@@ -274,7 +274,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v35 \u00b7 capesdev";
+const BUILD = "v36 \u00b7 mod-capes";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -781,6 +781,9 @@ function renderProfile(prof, history_in, ofCape){
           : `<div class="unavailable">No capes on this account.</div>`}
       </div>
 
+      <div class="section-title" id="modTitle" style="display:none">Mod capes</div>
+      <div class="gallery" id="modGallery"></div>
+
       <div class="section-title">Name history</div>
       ${renderHistory(history)}
     </div>
@@ -1224,16 +1227,22 @@ function addImgTile(kind, key, url, prof, caption){
   }
 }
 
-function addRawTile(kind,key,url,prof,caption){
-  const gal=document.getElementById(kind==="skin"?"skinGallery":"capeGallery");
+function addRawTile(key,front,caption,galId,full,prof){
+  const gal=document.getElementById(galId);
   if(!gal || gal.querySelector(`[data-key="${key}"]`)) return;
   const un=gal.querySelector(".unavailable"); if(un) un.remove();
+  if(galId==="modGallery"){ const t=document.getElementById("modTitle"); if(t) t.style.display=""; }
   const d=document.createElement("div"); d.className="tex"; d.dataset.key=key;
   const crop=document.createElement("div"); crop.className="crop raw";
-  const im=document.createElement("img"); im.loading="lazy"; im.alt=""; im.src=url;
-  im.onerror=()=>d.remove(); crop.appendChild(im);
+  const im=document.createElement("img"); im.loading="lazy"; im.alt=""; im.src=front;
+  im.onerror=()=>{ d.remove(); if(galId==="modGallery"&&!gal.children.length){const t=document.getElementById("modTitle"); if(t)t.style.display="none";} };
+  crop.appendChild(im);
   const cap=document.createElement("span"); cap.className="cap"; cap.textContent=caption||"cape";
   d.append(crop,cap); gal.appendChild(d);
+  if(full){
+    d.addEventListener("mouseenter",()=>{ if(VIEWER) try{ VIEWER.loadCape(full); }catch{} });
+    d.addEventListener("mouseleave",()=>{ if(prof&&prof.cape) loadCapeSafe(prof.cape); else clearCape(); });
+  }
 }
 
 function addHistTile(kind, key, img, prof, caption){
@@ -1297,17 +1306,22 @@ async function loadHistory(prof){
     }
   }catch{}
 
-  // --- capes.dev: every ecosystem (Mojang/OptiFine/LabyMod/MinecraftCapes), own CDN
+  // --- capes.dev: MOD ecosystems only. Its "minecraft" type is the same official
+  //     cape capes.me/Mojang already provide, which was causing every duplicate.
+  const ECO={optifine:"OptiFine",labymod:"LabyMod",minecraftcapes:"MinecraftCapes",
+             "5zig":"5zig",tlauncher:"TLauncher",skinmc:"SkinMC"};
   try{
-    const j=JSON.parse(cdTxt);
+    const j=JSON.parse(cdTxt), used=new Set();
     Object.keys(j||{}).forEach(k=>{
       const c=j[k];
-      if(!c || typeof c!=="object" || c.exists===false) return;
-      const front=(c.imageUrls&&c.imageUrls.base&&c.imageUrls.base.front)
-                || (c.imageHash?`https://api.capes.dev/img/front/${c.imageHash}`:c.imageUrl);
-      if(!front) return;
-      const t=String(c.type||k);
-      addRawTile("cape",`D${c.imageHash||k}`,front,prof,t.charAt(0).toUpperCase()+t.slice(1)); nCape++;
+      if(!c||typeof c!=="object"||c.exists===false) return;
+      const type=String(c.type||k).toLowerCase();
+      if(type==="minecraft") return;                 // official — handled elsewhere
+      const label=ECO[type]; if(!label) return;
+      const ih=c.imageHash; if(!ih||used.has(ih)) return; used.add(ih);
+      const front=(c.imageUrls&&c.imageUrls.base&&c.imageUrls.base.front)||c.frontImageUrl||`https://api.capes.dev/img/front/${ih}`;
+      const full =(c.imageUrls&&c.imageUrls.base&&c.imageUrls.base.full)||c.imageUrl||`https://api.capes.dev/img/${ih}`;
+      addRawTile(`D${ih}`,front,label,"modGallery",full,prof); nCape++;
     });
   }catch{}
 
