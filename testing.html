@@ -264,7 +264,7 @@ main{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:34px 22px 80px}
 /* ==========================================================================
    Zombie.skin — single-file client. Vanilla JS, no build step.
    ==========================================================================*/
-const BUILD = "v31 \u00b7 simple";
+const BUILD = "v32 \u00b7 DEBUG";
 
 /* -------------------- CONFIG (edit these two lines) -------------------- */
 const CONFIG = {
@@ -784,6 +784,7 @@ function renderProfile(prof, history_in, ofCape){
   }
   paintGalleryTiles();
   loadHistory(prof);
+  zDebug(prof);
   $$(".copy").forEach(el=>el.addEventListener("click",()=>copyText(el.dataset.c)));
   $("#favBadge").addEventListener("click",e=>{ const on=Store.toggleFav(prof.name); e.target.classList.toggle("on",on); e.target.textContent=on?"★ Favorited":"☆ Favorite"; });
   bindGallery(prof);
@@ -1005,7 +1006,6 @@ function paintGalleryTiles(){
     const url=cv.dataset.tex, kind=cv.dataset.kind;
     loadTexImg(url).then(img=>{
       if(!img){
-        console.warn("[zombie.skin] tile failed:", url, "\n tried:", withProxyFallbacks(texCandidates(url)).join("\n "));
         const ctx=cv.getContext("2d");
         ctx.fillStyle="#10140f"; ctx.fillRect(0,0,cv.width,cv.height);
         ctx.strokeStyle="#26302a"; ctx.strokeRect(0.5,0.5,cv.width-1,cv.height-1);
@@ -1017,7 +1017,106 @@ function paintGalleryTiles(){
     });
   });
 }
-/* -------------------- OMNI-SOURCE SKIN/CAPE HISTORY -------------------- */
+
+/* ==================== DEBUG REPORT ==================== */
+async function zDebug(prof){
+  const uuid=dashUuid(prof.id), uname=encodeURIComponent(prof.name);
+  const R={build:BUILD, worker:CONFIG.WORKER,
+    player:{name:prof.name,uuid:prof.id,skinId:prof.skinId||null,capeId:prof.capeId||null,slim:prof.slim,src:prof.src},
+    fetches:{}, images:[]};
+
+  const probe=async(label,url)=>{
+    const o={};
+    try{
+      const r=await fetch(px(url));
+      o.status=r.status;
+      const t=await r.text();
+      o.len=t.length;
+      o.head=t.slice(0,100).replace(/\s+/g,' ');
+      R.fetches[label]=o; return t;
+    }catch(e){ o.err=String(e.message||e).slice(0,80); R.fetches[label]=o; return ""; }
+  };
+
+  const labyV2 = await probe('labyV2',     `https://laby.net/api/v2/user/${uuid}/get-profile`);
+  const labyV3 = await probe('labyV3',     `https://laby.net/api/v3/user/${uuid}/profile`);
+  const cPage  = await probe('craftyPage', `https://crafty.gg/@${uname}`);
+  const cApi   = await probe('craftyApi',  `https://api.crafty.gg/api/v2/players/${uname}`);
+
+  // --- what shape is laby actually returning? ---
+  [['labyV2',labyV2],['labyV3',labyV3]].forEach(([k,t])=>{
+    const o=R.fetches[k]; if(!o||!t) return;
+    try{
+      const j=JSON.parse(t);
+      o.topKeys=Object.keys(j).slice(0,14);
+      const tex=j.textures||j.texture||{};
+      o.texKeys=Object.keys(tex);
+      o.skinCount=(tex.SKIN||[]).length;
+      o.capeCount=(tex.CAPE||[]).length;
+      if(tex.SKIN&&tex.SKIN[0]) o.skin0=tex.SKIN[0];
+      if(tex.CAPE&&tex.CAPE[0]) o.cape0=tex.CAPE[0];
+      o.nameHistCount=(j.username_history||j.name_history||[]).length;
+      delete o.head;
+    }catch(e){ o.parseErr=String(e.message).slice(0,70); }
+  });
+
+  // --- is crafty returning a real page or a bot wall? ---
+  const cp=R.fetches.craftyPage;
+  if(cp&&cPage){
+    const hs=[...cPage.matchAll(/render\.crafty\.gg\/3d\/(?:full|bust|head|body)\/([0-9a-f]{64})/gi)].map(m=>m[1].toLowerCase());
+    cp.renderHashes=hs.length; cp.sample=hs.slice(0,3);
+    cp.total64=(cPage.match(/[0-9a-f]{64}/gi)||[]).length;
+    cp.botWall=/just a moment|cf-browser-verification|challenge-platform|enable javascript and cookies/i.test(cPage);
+    cp.hasUsername=new RegExp(prof.name,'i').test(cPage);
+  }
+  const ca=R.fetches.craftyApi;
+  if(ca&&cApi){ try{ const j=JSON.parse(cApi), d=j.data||j;
+      ca.topKeys=Object.keys(d).slice(0,14);
+      ca.skinsLen=Array.isArray(d.skins)?d.skins.length:null;
+      ca.capesLen=Array.isArray(d.capes)?d.capes.length:null;
+      if(Array.isArray(d.skins)&&d.skins[0]) ca.skin0=d.skins[0];
+      if(Array.isArray(d.capes)&&d.capes[0]) ca.cape0=d.capes[0];
+      delete ca.head;
+    }catch(e){ ca.parseErr=String(e.message).slice(0,70); } }
+
+  // --- can we actually LOAD texture images? ---
+  const imgTest=async(label,url,direct)=>{
+    const o={label};
+    try{
+      const r=await fetch(direct?url:px(url));
+      o.status=r.status;
+      o.type=(r.headers.get('content-type')||'?').slice(0,28);
+      const b=await r.blob(); o.bytes=b.size;
+      if(b.size>80){
+        const u=URL.createObjectURL(b); const im=await imgFrom(u);
+        o.dims=im?(im.naturalWidth+'x'+im.naturalHeight):'DECODE-FAIL';
+        URL.revokeObjectURL(u);
+      }
+    }catch(e){ o.err=String(e.message||e).slice(0,70); }
+    R.images.push(o);
+  };
+
+  let labyHash=null;
+  for(const t of [labyV3,labyV2]){ try{ const j=JSON.parse(t), x=j.textures||{};
+    labyHash=(x.SKIN&&x.SKIN[0]&&x.SKIN[0].image_hash)||(x.CAPE&&x.CAPE[0]&&x.CAPE[0].image_hash);
+    if(labyHash) break; }catch{} }
+  const craftyHash=(cp&&cp.sample&&cp.sample[0])||null;
+  R.sampleHashes={laby:labyHash||null, crafty:craftyHash||null};
+
+  if(prof.skinId)  await imgTest('mojang-CURRENT(worker)', `https://textures.minecraft.net/texture/${prof.skinId}`);
+  if(craftyHash)   await imgTest('mojang-CRAFTYHASH(worker)', `https://textures.minecraft.net/texture/${craftyHash}`);
+  if(labyHash){
+    await imgTest('laby-img(worker)', `https://laby.net/texture/image/${labyHash}.png`);
+    await imgTest('laby-gapple(direct)', `https://api.gapple.pw/cors/laby/image/${labyHash}`, true);
+    await imgTest('laby-skin(worker)', `https://laby.net/texture/skin/${labyHash}.png`);
+  }
+
+  window.ZDEBUG=R;
+  console.log('%c===== ZOMBIE.SKIN DEBUG — copy everything below =====','color:#54e868;font-weight:bold');
+  console.log(JSON.stringify(R,null,1));
+  console.log('%c===== END DEBUG (or run:  copy(ZDEBUG)  ) =====','color:#54e868;font-weight:bold');
+}
+
+/* -------------------- SKIN/CAPE HISTORY -------------------- */
 // Pull raw responses from every known history source, harvest 64-hex Mojang
 // texture hashes, then load each from Mojang's CDN and classify by the image
 // itself: 64x64 = skin, 2:1 mostly-empty-right = cape, 2:1 full = legacy skin.
@@ -1129,7 +1228,6 @@ async function loadHistory(prof){
   const fps=new Set(), keys=new Set();
   for(const u of [prof.skin, prof.cape]){ if(!u) continue; const im=await loadTexImg(u); if(im) fps.add(fingerprint(im)); }
 
-  console.info("[zombie.skin] history: laby+crafty queued", queue.length, "textures");
   let shown=0;
   for(const it of queue){
     if(keys.has(it.key)) continue; keys.add(it.key);
@@ -1141,7 +1239,6 @@ async function loadHistory(prof){
     addHistTile(classifyTexture(img)||it.kind, it.key, img, prof, fmtHistDate(it.date));
     shown++;
   }
-  console.info("[zombie.skin] history: rendered", shown, "tiles");
 }
 
 async function addEars(prof){ // deadmau5 easter egg — ears synthesized from the head texture
